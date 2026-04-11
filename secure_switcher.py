@@ -15,6 +15,7 @@ import pystray
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from vault import IncrementalVault
 
 class ToggleSwitch(tk.Canvas):
     def __init__(self, parent, variable, command=None, bg="#0f1923", active_color="#d13639", *args, **kwargs):
@@ -86,10 +87,8 @@ class SecureSwitcher:
         if os.path.exists("riot_icon.ico"):
             self.root.iconbitmap("riot_icon.ico")
         
-        self.vault_data = {}
+        self.vault = None
         self.current_app = None
-        self.salt = None
-        self.fernet = None
         self.x = 0
         self.y = 0
 
@@ -102,16 +101,38 @@ class SecureSwitcher:
         self.content_frame = tk.Frame(root, bg="#0f1923")
         self.content_frame.pack(fill='both', expand=True, padx=25, pady=20)
 
-        # Load Vault
-        if not self.load_vault():
-            sys.exit() # Close if user cancels or fails login
+        # Show Loading View
+        self.show_loading_view()
+
+        # Load Vault in background
+        threading.Thread(target=self.load_vault_async, daemon=True).start()
 
         # Check startup status
         self.startup_var = tk.BooleanVar(value=self.check_startup_status())
         self.tray_var = tk.BooleanVar(value=self.load_settings().get("tray", False))
 
         self.setup_hotkey()
-        self.show_apps_view()
+
+    def show_loading_view(self):
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        tk.Label(self.content_frame, text="UNLOCKING VAULT...", font=("Segoe UI", 12, "bold"), 
+                 bg="#0f1923", fg="#d13639").pack(expand=True)
+
+    def load_vault_async(self):
+        # In a real app, we'd prompt for password here. 
+        # For this refactor, we use the existing hardcoded 'dev'
+        pwd = "dev"
+        self.vault = IncrementalVault(pwd)
+        
+        def on_loaded(success):
+            if success:
+                self.root.after(0, self.show_apps_view)
+            else:
+                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to unlock vault"))
+                self.root.after(0, self.root.destroy)
+
+        self.vault.load(callback=on_loaded)
 
     def setup_title_bar(self):
         # Title
@@ -219,83 +240,6 @@ class SecureSwitcher:
         icon.stop()
         self.root.after(0, self.root.destroy)
 
-    def get_key(self, password, salt):
-        """Re-derive the key using the same logic as setup."""
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-        )
-        return base64.urlsafe_b64encode(kdf.derive(password.encode()))
-
-    def load_vault(self):
-        if not os.path.exists("my_vault.bin"):
-            return self.create_new_vault()
-
-        try:
-            with open("my_vault.bin", "rb") as file:
-                file_content = file.read()
-                
-            # Extract Salt (first 16 bytes) and Data
-            self.salt = file_content[:16]
-            encrypted_data = file_content[16:]
-            
-            # Prompt for Master Password
-            # Since this runs on startup, this dialog will wait for you
-            # pwd = simpledialog.askstring("Unlock Vault", "Enter Master Password:", show='*', parent=self.root)
-            pwd = "dev"
-
-            key = self.get_key(pwd, self.salt)
-            self.fernet = Fernet(key)
-            
-            # Decrypt
-            decrypted_data = self.fernet.decrypt(encrypted_data)
-            data = json.loads(decrypted_data.decode())
-            
-            # Migration: Check if old flat format
-            if data and isinstance(next(iter(data.values())), (list, tuple)):
-                self.vault_data = {
-                    "Riot Games": {
-                        k: {"username": v[0], "password": v[1], "riot_logic": True}
-                        for k, v in data.items()
-                    }
-                }
-                self.save_vault()
-            else:
-                self.vault_data = data
-            return True
-            
-        except InvalidToken:
-            messagebox.showerror("Error", "Wrong Password!")
-            return False
-        except Exception as e:
-            messagebox.showerror("Error", f"Crash: {str(e)}")
-            return False
-
-    def create_new_vault(self):
-        if not messagebox.askyesno("Welcome", "No vault found. Create a new secure vault?"):
-            return False
-        
-        # pwd = simpledialog.askstring("Setup", "Create a Master Password:", show='*', parent=self.root)
-        pwd = "dev"
-        
-        self.salt = os.urandom(16)
-        key = self.get_key(pwd, self.salt)
-        self.fernet = Fernet(key)
-        self.vault_data = {}
-        self.save_vault()
-        return True
-
-    def save_vault(self):
-        try:
-            data = json.dumps(self.vault_data).encode()
-            encrypted_data = self.fernet.encrypt(data)
-            with open("my_vault.bin", "wb") as f:
-                f.write(self.salt + encrypted_data)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save vault: {e}")
-
     def load_settings(self):
         if os.path.exists("settings.json"):
             try:
@@ -377,7 +321,7 @@ class SecureSwitcher:
         # Scrollable App List
         scroll_frame = self.create_scrollable_frame(self.content_frame)
         
-        for app_name in self.vault_data:
+        for app_name in self.vault.get_apps():
             btn = tk.Button(scroll_frame, text=app_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
                           bg="#ece8e1", fg="#0f1923",
@@ -417,7 +361,7 @@ class SecureSwitcher:
         # Scrollable Account List
         scroll_frame = self.create_scrollable_frame(self.content_frame)
 
-        accounts = self.vault_data.get(app_name, {})
+        accounts = self.vault.get_accounts(app_name)
         for acc_name in accounts:
             btn = tk.Button(scroll_frame, text=acc_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
@@ -485,7 +429,7 @@ class SecureSwitcher:
         tk.Label(riot_frame, text="Use Riot Login (Click & Type)", **lbl_style).pack(side='left', padx=10)
 
         if edit_name and edit_app:
-            data = self.vault_data[edit_app][edit_name]
+            data = self.vault.get_entry(edit_app, edit_name)
             name_entry.insert(0, edit_name)
             user_entry.insert(0, data['username'])
             pass_entry.insert(0, data['password'])
@@ -501,20 +445,16 @@ class SecureSwitcher:
                 messagebox.showwarning("Error", "App and Account Name required.")
                 return
 
-            if app not in self.vault_data:
-                self.vault_data[app] = {}
-            
             # If editing, remove old entry if name changed
             if edit_name and edit_app and (edit_name != name or edit_app != app):
-                del self.vault_data[edit_app][edit_name]
-                if not self.vault_data[edit_app]: del self.vault_data[edit_app]
+                self.vault.delete_entry(edit_app, edit_name)
 
-            self.vault_data[app][name] = {
+            self.vault.set_entry(app, name, {
                 "username": user,
                 "password": pwd,
                 "riot_logic": riot_var.get()
-            }
-            self.save_vault()
+            })
+            self.vault.save()
             self.show_accounts_view(app)
 
         def cancel():
@@ -548,18 +488,18 @@ class SecureSwitcher:
 
     def delete_app(self, app_name):
         if messagebox.askyesno("Confirm", f"Delete entire application '{app_name}' and all passwords?"):
-            del self.vault_data[app_name]
-            self.save_vault()
+            self.vault.delete_app(app_name)
+            self.vault.save()
             self.show_apps_view()
 
     def delete_account(self, app_name, acc_name):
         if messagebox.askyesno("Confirm", f"Delete account '{acc_name}'?"):
-            del self.vault_data[app_name][acc_name]
-            self.save_vault()
+            self.vault.delete_entry(app_name, acc_name)
+            self.vault.save()
             self.show_accounts_view(app_name)
 
     def execute_login(self, app_name, account_name):
-        data = self.vault_data[app_name][account_name]
+        data = self.vault.get_entry(app_name, account_name)
         username = data['username']
         password = data['password']
         
@@ -580,28 +520,26 @@ class SecureSwitcher:
         
         # Wait for mouse release (from clicking the button)
         while ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
-            time.sleep(0.05)
+            time.sleep(0.01)
 
         # Wait for next click (on the target input)
         while not (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000):
-            time.sleep(0.05)
+            time.sleep(0.01)
         
-        time.sleep(0.2) 
+        time.sleep(0.1) 
         
         # Type Username (fast to avoid clipboard race conditions)
         pyautogui.write(username, interval=0)
 
         pyautogui.press('tab')
-        time.sleep(0.1) # Wait for focus switch
         
         # Paste Password
         self.root.clipboard_clear()
         self.root.clipboard_append(password)
         self.root.update()
-        time.sleep(0.1) # Wait for clipboard to update
         pyautogui.hotkey('ctrl', 'v')
 
-        time.sleep(0.2)
+        time.sleep(0.1)
         pyautogui.press('enter')
         
         self.root.deiconify()
