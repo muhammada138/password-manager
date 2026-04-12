@@ -18,12 +18,12 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from vault import IncrementalVault
 
 class ToggleSwitch(tk.Canvas):
-    def __init__(self, parent, variable, command=None, bg="#0f1923", active_color="#d13639", *args, **kwargs):
+    def __init__(self, parent, variable, command=None, bg="#111827", active_color="#3b82f6", *args, **kwargs):
         super().__init__(parent, width=40, height=20, bg=bg, highlightthickness=0, cursor="hand2", *args, **kwargs)
         self.variable = variable
         self.command = command
         self.active_color = active_color
-        self.bg_color = "#5c5c5c"
+        self.bg_color = "#374151"
         self.bind("<Button-1>", self.toggle)
         self.draw()
 
@@ -31,11 +31,9 @@ class ToggleSwitch(tk.Canvas):
         self.delete("all")
         state = self.variable.get()
         fill_color = self.active_color if state else self.bg_color
-        # Draw track
         self.create_oval(0, 0, 20, 20, fill=fill_color, outline="")
         self.create_oval(20, 0, 40, 20, fill=fill_color, outline="")
         self.create_rectangle(10, 0, 30, 20, fill=fill_color, outline="")
-        # Draw knob
         knob_x = 30 if state else 10
         self.create_oval(knob_x-8, 2, knob_x+8, 18, fill="white", outline="")
 
@@ -49,24 +47,23 @@ class ModernMenu(tk.Toplevel):
     def __init__(self, parent, x, y, options):
         super().__init__(parent)
         self.overrideredirect(True)
-        self.configure(bg="#5c5c5c", padx=1, pady=1) # Border effect
+        self.configure(bg="#374151", padx=1, pady=1) 
         
         self.geometry(f"+{x}+{y}")
         self.attributes('-topmost', True)
         
-        container = tk.Frame(self, bg="#1f2b36")
+        container = tk.Frame(self, bg="#1f2937")
         container.pack(fill='both', expand=True)
 
         for label, command in options:
             btn = tk.Button(container, text=label, font=("Segoe UI", 10), 
-                            bg="#1f2b36", fg="#ece8e1", activebackground="#d13639", activeforeground="white",
+                            bg="#1f2937", fg="#f3f4f6", activebackground="#3b82f6", activeforeground="white",
                             relief="flat", bd=0, anchor="w", padx=15, cursor="hand2",
                             command=lambda c=command: self.execute(c))
             btn.pack(fill='x', ipady=6)
             
-            # Hover effect
-            btn.bind("<Enter>", lambda e, b=btn: b.configure(bg="#2c3b4b"))
-            btn.bind("<Leave>", lambda e, b=btn: b.configure(bg="#1f2b36"))
+            btn.bind("<Enter>", lambda e, b=btn: b.configure(bg="#374151"))
+            btn.bind("<Leave>", lambda e, b=btn: b.configure(bg="#1f2937"))
             
         self.bind("<FocusOut>", lambda e: self.destroy())
         self.focus_force()
@@ -78,36 +75,31 @@ class ModernMenu(tk.Toplevel):
 class SecureSwitcher:
     def __init__(self, root):
         self.root = root
-        self.root.title("Riot Manager")
+        self.root.title("OmniVault")
         self.root.geometry("360x600")
-        self.root.configure(bg="#0f1923")
-        self.root.overrideredirect(True) # Frameless Modern Window
+        self.root.configure(bg="#111827")
+        self.root.overrideredirect(True) 
         self.root.attributes('-topmost', True)
         
-        if os.path.exists("riot_icon.ico"):
-            self.root.iconbitmap("riot_icon.ico")
+        if os.path.exists("vault_icon.ico"):
+            self.root.iconbitmap("vault_icon.ico")
         
         self.vault = None
         self.current_app = None
         self.x = 0
         self.y = 0
 
-        # Custom Title Bar (Drag Area)
-        self.title_bar = tk.Frame(root, bg="#1f2b36", height=35)
+        self.title_bar = tk.Frame(root, bg="#1f2937", height=35)
         self.title_bar.pack(fill='x', side='top')
         self.setup_title_bar()
 
-        # Main Content Area
-        self.content_frame = tk.Frame(root, bg="#0f1923")
+        self.content_frame = tk.Frame(root, bg="#111827")
         self.content_frame.pack(fill='both', expand=True, padx=25, pady=20)
 
-        # Show Loading View
         self.show_loading_view()
 
-        # Load Vault in background
-        threading.Thread(target=self.load_vault_async, daemon=True).start()
+        self.root.after(100, self.prompt_password)
 
-        # Check startup status
         self.startup_var = tk.BooleanVar(value=self.check_startup_status())
         self.tray_var = tk.BooleanVar(value=self.load_settings().get("tray", False))
 
@@ -117,12 +109,15 @@ class SecureSwitcher:
         for widget in self.content_frame.winfo_children():
             widget.destroy()
         tk.Label(self.content_frame, text="UNLOCKING VAULT...", font=("Segoe UI", 12, "bold"), 
-                 bg="#0f1923", fg="#d13639").pack(expand=True)
+                 bg="#111827", fg="#3b82f6").pack(expand=True)
 
-    def load_vault_async(self):
-        # In a real app, we'd prompt for password here. 
-        # For this refactor, we use the existing hardcoded 'dev'
-        pwd = "dev"
+    def prompt_password(self):
+        self.root.deiconify()
+        pwd = simpledialog.askstring("OmniVault Login", "Enter Vault Password:", show='*', parent=self.root)
+        if not pwd:
+            self.root.destroy()
+            return
+        
         self.vault = IncrementalVault(pwd)
         
         def on_loaded(success):
@@ -132,26 +127,22 @@ class SecureSwitcher:
                 self.root.after(0, lambda: messagebox.showerror("Error", "Failed to unlock vault"))
                 self.root.after(0, self.root.destroy)
 
-        self.vault.load(callback=on_loaded)
+        threading.Thread(target=self.vault.load, args=(on_loaded,), daemon=True).start()
 
     def setup_title_bar(self):
-        # Title
-        tk.Label(self.title_bar, text="  RIOT MANAGER", bg="#1f2b36", fg="#d13639", 
+        tk.Label(self.title_bar, text="  OMNIVAULT", bg="#1f2937", fg="#3b82f6", 
                  font=("Segoe UI", 10, "bold")).pack(side='left', pady=8)
         
-        # Close Button
         close_btn = tk.Button(self.title_bar, text="✕", command=self.root.destroy, 
-                              bg="#1f2b36", fg="white", bd=0, font=("Arial", 12),
-                              activebackground="#d13639", activeforeground="white", cursor="hand2")
+                              bg="#1f2937", fg="white", bd=0, font=("Arial", 12),
+                              activebackground="#3b82f6", activeforeground="white", cursor="hand2")
         close_btn.pack(side='right', padx=10, pady=5)
         
-        # Minimize Button
         min_btn = tk.Button(self.title_bar, text="_", command=self.minimize_window,
-                            bg="#1f2b36", fg="white", bd=0, font=("Arial", 12, "bold"),
-                            activebackground="#1f2b36", activeforeground="#d13639", cursor="hand2")
+                            bg="#1f2937", fg="white", bd=0, font=("Arial", 12, "bold"),
+                            activebackground="#1f2937", activeforeground="#3b82f6", cursor="hand2")
         min_btn.pack(side='right', padx=0, pady=5)
 
-        # Drag Logic
         self.title_bar.bind("<ButtonPress-1>", self.start_move)
         self.title_bar.bind("<B1-Motion>", self.do_move)
 
@@ -171,13 +162,11 @@ class SecureSwitcher:
             self.root.withdraw()
             self.run_tray_icon()
         else:
-            # Temporarily disable frameless mode so it minimizes to taskbar correctly
             self.root.overrideredirect(False)
             self.root.iconify()
             self.root.bind('<Map>', self.restore_window)
 
     def restore_window(self, event):
-        # Restore frameless mode when window is opened again
         if self.root.state() == 'normal':
             self.root.overrideredirect(True)
             self.root.unbind('<Map>')
@@ -188,21 +177,20 @@ class SecureSwitcher:
             pystray.MenuItem('Show', self.on_tray_show, default=True),
             pystray.MenuItem('Quit', self.on_tray_quit)
         )
-        self.icon = pystray.Icon("RiotManager", image, "Riot Manager", menu)
+        self.icon = pystray.Icon("OmniVault", image, "OmniVault", menu)
         threading.Thread(target=self.icon.run, daemon=True).start()
 
     def setup_hotkey(self):
         threading.Thread(target=self.hotkey_loop, daemon=True).start()
 
     def hotkey_loop(self):
-        # Register Ctrl + P (MOD_CONTROL=0x0002, 'P'=0x50)
         if not ctypes.windll.user32.RegisterHotKey(None, 1, 0x0002, 0x50):
             print("Failed to register hotkey")
             return
 
         msg = wintypes.MSG()
         while ctypes.windll.user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-            if msg.message == 0x0312: # WM_HOTKEY
+            if msg.message == 0x0312: 
                 self.root.after(0, self.toggle_app_visibility)
             ctypes.windll.user32.TranslateMessage(ctypes.byref(msg))
             ctypes.windll.user32.DispatchMessageW(ctypes.byref(msg))
@@ -224,13 +212,12 @@ class SecureSwitcher:
         self.root.focus_force()
 
     def create_tray_image(self):
-        if os.path.exists("riot_icon.ico"):
-            return Image.open("riot_icon.ico")
+        if os.path.exists("vault_icon.ico"):
+            return Image.open("vault_icon.ico")
             
-        # Create a 64x64 icon: Dark background with Red square
-        image = Image.new('RGB', (64, 64), color="#0f1923")
+        image = Image.new('RGB', (64, 64), color="#111827")
         d = ImageDraw.Draw(image)
-        d.rectangle([16, 16, 48, 48], fill="#d13639")
+        d.rectangle([16, 16, 48, 48], fill="#3b82f6")
         return image
 
     def on_tray_show(self, icon, item):
@@ -254,13 +241,13 @@ class SecureSwitcher:
             json.dump({"tray": self.tray_var.get()}, f)
 
     def create_scrollable_frame(self, parent):
-        container = tk.Frame(parent, bg="#0f1923")
+        container = tk.Frame(parent, bg="#111827")
         container.pack(fill='both', expand=True)
         
-        canvas = tk.Canvas(container, bg="#0f1923", highlightthickness=0)
+        canvas = tk.Canvas(container, bg="#111827", highlightthickness=0)
         scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
         
-        scroll_frame = tk.Frame(canvas, bg="#0f1923")
+        scroll_frame = tk.Frame(canvas, bg="#111827")
         
         scroll_frame.bind(
             "<Configure>",
@@ -289,84 +276,74 @@ class SecureSwitcher:
 
     def show_apps_view(self):
         self.current_app = None
-        # Clear current view
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        # Header
         tk.Label(self.content_frame, text="APPLICATIONS", font=("Segoe UI", 14, "bold"), 
-                 bg="#0f1923", fg="#ece8e1").pack(anchor='w', pady=(0, 15))
+                 bg="#111827", fg="#f3f4f6").pack(anchor='w', pady=(0, 15))
 
-        # Bottom Controls (Fixed at bottom)
-        bottom_frame = tk.Frame(self.content_frame, bg="#0f1923")
+        bottom_frame = tk.Frame(self.content_frame, bg="#111827")
         bottom_frame.pack(side='bottom', fill='x', pady=10)
 
         tk.Button(bottom_frame, text="+ NEW APPLICATION", 
-                  font=("Segoe UI", 10, "bold"), bg="#1f2b36", fg="#ece8e1",
-                  activebackground="#d13639", activeforeground="white",
+                  font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
+                  activebackground="#3b82f6", activeforeground="white",
                   relief="flat", bd=0, cursor="hand2",
                   command=lambda: self.show_add_view(is_new_app=True)).pack(fill='x', pady=(0, 15), ipady=3)
 
-        # Modern Toggles
-        row1 = tk.Frame(bottom_frame, bg="#0f1923")
+        row1 = tk.Frame(bottom_frame, bg="#111827")
         row1.pack(fill='x', pady=5)
         ToggleSwitch(row1, self.startup_var, command=self.toggle_startup).pack(side='left')
-        tk.Label(row1, text="Start with Windows", bg="#0f1923", fg="#ece8e1", font=("Segoe UI", 10)).pack(side='left', padx=10)
+        tk.Label(row1, text="Start with Windows", bg="#111827", fg="#f3f4f6", font=("Segoe UI", 10)).pack(side='left', padx=10)
 
-        row2 = tk.Frame(bottom_frame, bg="#0f1923")
+        row2 = tk.Frame(bottom_frame, bg="#111827")
         row2.pack(fill='x', pady=5)
         ToggleSwitch(row2, self.tray_var, command=self.save_settings).pack(side='left')
-        tk.Label(row2, text="Minimize to Tray", bg="#0f1923", fg="#ece8e1", font=("Segoe UI", 10)).pack(side='left', padx=10)
+        tk.Label(row2, text="Minimize to Tray", bg="#111827", fg="#f3f4f6", font=("Segoe UI", 10)).pack(side='left', padx=10)
 
-        # Scrollable App List
         scroll_frame = self.create_scrollable_frame(self.content_frame)
         
         for app_name in self.vault.get_apps():
             btn = tk.Button(scroll_frame, text=app_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
-                          bg="#ece8e1", fg="#0f1923",
-                          activebackground="#d13639", activeforeground="white",
+                          bg="#f3f4f6", fg="#111827",
+                          activebackground="#3b82f6", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=app_name: self.show_accounts_view(n))
             btn.pack(fill='x', pady=5, ipady=5)
             
-            # Right click to delete
             btn.bind("<Button-3>", lambda event, n=app_name: self.show_app_context_menu(event, n))
 
     def show_accounts_view(self, app_name):
         self.current_app = app_name
-        # Clear current view
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
-        # Header with Back Button
-        header = tk.Frame(self.content_frame, bg="#0f1923")
+        header = tk.Frame(self.content_frame, bg="#111827")
         header.pack(fill='x', pady=(0, 15), side='top')
         
         tk.Button(header, text="<", font=("Segoe UI", 12, "bold"), 
-                  bg="#0f1923", fg="#d13639", bd=0, activebackground="#0f1923", activeforeground="white",
+                  bg="#111827", fg="#3b82f6", bd=0, activebackground="#111827", activeforeground="white",
                   cursor="hand2", command=self.show_apps_view).pack(side='left')
                   
         tk.Label(header, text=app_name.upper(), font=("Segoe UI", 14, "bold"), 
-                 bg="#0f1923", fg="#ece8e1").pack(side='left', padx=10)
+                 bg="#111827", fg="#f3f4f6").pack(side='left', padx=10)
 
-        # Add Account Button (Fixed at bottom)
         tk.Button(self.content_frame, text="+ ADD ACCOUNT", 
-                  font=("Segoe UI", 10, "bold"), bg="#1f2b36", fg="#ece8e1",
-                  activebackground="#d13639", activeforeground="white",
+                  font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
+                  activebackground="#3b82f6", activeforeground="white",
                   relief="flat", bd=0, cursor="hand2",
                   command=lambda: self.show_add_view(prefill_app=app_name)).pack(side='bottom', fill='x', pady=20, ipady=3)
 
-        # Scrollable Account List
         scroll_frame = self.create_scrollable_frame(self.content_frame)
 
         accounts = self.vault.get_accounts(app_name)
         for acc_name in accounts:
             btn = tk.Button(scroll_frame, text=acc_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
-                          bg="#ece8e1", fg="#0f1923",
-                          activebackground="#d13639", activeforeground="white",
+                          bg="#f3f4f6", fg="#111827",
+                          activebackground="#3b82f6", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=acc_name: self.execute_login(app_name, n))
@@ -375,17 +352,15 @@ class SecureSwitcher:
             btn.bind("<Button-3>", lambda event, n=acc_name: self.show_account_context_menu(event, app_name, n))
 
     def show_add_view(self, edit_app=None, edit_name=None, prefill_app=None, is_new_app=False):
-        # Clear current view
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
         title_text = "EDIT ACCOUNT" if edit_name else ("NEW APPLICATION" if is_new_app else "NEW ACCOUNT")
         tk.Label(self.content_frame, text=title_text, font=("Segoe UI", 14, "bold"), 
-                 bg="#0f1923", fg="#ece8e1").pack(anchor='w', pady=(0, 20))
+                 bg="#111827", fg="#f3f4f6").pack(anchor='w', pady=(0, 20))
 
-        # Styles
-        lbl_style = {"bg": "#0f1923", "fg": "#ece8e1", "font": ("Segoe UI", 10)}
-        entry_style = {"bg": "#1f2b36", "fg": "white", "insertbackground": "white", "relief": "flat"}
+        lbl_style = {"bg": "#111827", "fg": "#f3f4f6", "font": ("Segoe UI", 10)}
+        entry_style = {"bg": "#1f2937", "fg": "white", "insertbackground": "white", "relief": "flat"}
 
         tk.Label(self.content_frame, text="Application", **lbl_style).pack(anchor='w', pady=(5, 2))
         app_entry = tk.Entry(self.content_frame, **entry_style)
@@ -401,8 +376,7 @@ class SecureSwitcher:
         user_entry = tk.Entry(self.content_frame, **entry_style)
         user_entry.pack(fill='x', ipady=5, pady=(0, 10))
 
-        # Password Row with Show Toggle
-        pass_frame = tk.Frame(self.content_frame, bg="#0f1923")
+        pass_frame = tk.Frame(self.content_frame, bg="#111827")
         pass_frame.pack(fill='x', pady=(5, 2))
         tk.Label(pass_frame, text="Password", **lbl_style).pack(side='left')
         
@@ -415,18 +389,17 @@ class SecureSwitcher:
                 show_btn.config(text="Show")
 
         show_btn = tk.Button(pass_frame, text="Show", command=toggle_pass_view,
-                             bg="#0f1923", fg="#d13639", bd=0, font=("Segoe UI", 8), cursor="hand2", activebackground="#0f1923")
+                             bg="#111827", fg="#3b82f6", bd=0, font=("Segoe UI", 8), cursor="hand2", activebackground="#111827")
         show_btn.pack(side='right')
 
         pass_entry = tk.Entry(self.content_frame, show="*", **entry_style)
         pass_entry.pack(fill='x', ipady=5, pady=(0, 10))
 
-        # Riot Logic Toggle
         riot_var = tk.BooleanVar(value=False)
-        riot_frame = tk.Frame(self.content_frame, bg="#0f1923")
+        riot_frame = tk.Frame(self.content_frame, bg="#111827")
         riot_frame.pack(fill='x', pady=10)
         ToggleSwitch(riot_frame, riot_var).pack(side='left')
-        tk.Label(riot_frame, text="Use Riot Login (Click & Type)", **lbl_style).pack(side='left', padx=10)
+        tk.Label(riot_frame, text="Use Omni Login (Click & Type)", **lbl_style).pack(side='left', padx=10)
 
         if edit_name and edit_app:
             data = self.vault.get_entry(edit_app, edit_name)
@@ -445,7 +418,6 @@ class SecureSwitcher:
                 messagebox.showwarning("Error", "App and Account Name required.")
                 return
 
-            # If editing, remove old entry if name changed
             if edit_name and edit_app and (edit_name != name or edit_app != app):
                 self.vault.delete_entry(edit_app, edit_name)
 
@@ -463,14 +435,13 @@ class SecureSwitcher:
             else:
                 self.show_apps_view()
 
-        # Buttons
-        btn_frame = tk.Frame(self.content_frame, bg="#0f1923")
+        btn_frame = tk.Frame(self.content_frame, bg="#111827")
         btn_frame.pack(fill='x', pady=10)
 
-        tk.Button(btn_frame, text="SAVE", command=save, bg="#d13639", fg="white",
+        tk.Button(btn_frame, text="SAVE", command=save, bg="#3b82f6", fg="white",
                   font=("Segoe UI", 10, "bold"), relief="flat", width=10).pack(side='left')
         
-        tk.Button(btn_frame, text="CANCEL", command=cancel, bg="#1f2b36", fg="white",
+        tk.Button(btn_frame, text="CANCEL", command=cancel, bg="#1f2937", fg="white",
                   font=("Segoe UI", 10, "bold"), relief="flat", width=10).pack(side='right')
 
     def show_app_context_menu(self, event, app_name):
@@ -499,66 +470,58 @@ class SecureSwitcher:
             self.show_accounts_view(app_name)
 
     def execute_login(self, app_name, account_name):
+        threading.Thread(target=self._execute_login_thread, args=(app_name, account_name), daemon=True).start()
+
+    def _execute_login_thread(self, app_name, account_name):
         data = self.vault.get_entry(app_name, account_name)
         username = data['username']
         password = data['password']
         
-        # Check if using Riot Logic
         if not data.get('riot_logic', False):
-            # Standard Behavior: Copy "username : password" to Clipboard
-            self.root.clipboard_clear()
-            self.root.clipboard_append(f"{username} : {password}")
-            self.root.update()
+            self.root.after(0, self.root.clipboard_clear)
+            self.root.after(0, lambda: self.root.clipboard_append(f"{username} : {password}"))
+            self.root.after(0, self.root.update)
             
-            # Auto send to tray
-            self.root.withdraw()
-            self.run_tray_icon()
+            self.root.after(0, self.root.withdraw)
+            self.root.after(0, self.run_tray_icon)
             return
         
-        # Riot Logic (Click & Type)
-        self.root.withdraw()
+        self.root.after(0, self.root.withdraw)
         
-        # Wait for mouse release (from clicking the button)
         while ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
             time.sleep(0.01)
 
-        # Wait for next click (on the target input)
         while not (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000):
             time.sleep(0.01)
         
         time.sleep(0.1) 
         
-        # Type Username (fast to avoid clipboard race conditions)
         pyautogui.write(username, interval=0)
-
         pyautogui.press('tab')
         
-        # Paste Password
-        self.root.clipboard_clear()
-        self.root.clipboard_append(password)
-        self.root.update()
+        self.root.after(0, self.root.clipboard_clear)
+        self.root.after(0, lambda: self.root.clipboard_append(password))
+        self.root.after(0, self.root.update)
+        time.sleep(0.1)
         pyautogui.hotkey('ctrl', 'v')
 
         time.sleep(0.1)
         pyautogui.press('enter')
         
-        self.root.deiconify()
+        self.root.after(0, self.root.deiconify)
 
     def check_startup_status(self):
-        """Check if registry key exists."""
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
-            winreg.QueryValueEx(key, "RiotSecureSwitcher")
+            winreg.QueryValueEx(key, "OmniVaultSwitcher")
             winreg.CloseKey(key)
             return True
         except:
             return False
 
     def toggle_startup(self):
-        """Add or remove from Windows Startup."""
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-        app_name = "RiotSecureSwitcher"
-        # Use pythonw.exe to run without console
+        app_name = "OmniVaultSwitcher"
         exe_path = sys.executable.replace("python.exe", "pythonw.exe")
         script_path = os.path.abspath(__file__)
         command = f'"{exe_path}" "{script_path}"'
@@ -575,18 +538,11 @@ class SecureSwitcher:
             winreg.CloseKey(key)
         except Exception as e:
             messagebox.showerror("Error", f"Startup setting failed: {e}")
-            self.startup_var.set(not self.startup_var.get()) # Revert check
+            self.startup_var.set(not self.startup_var.get())
 
 if __name__ == "__main__":
-    # Fix for shortcut: Set working directory to the script's folder
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
     root = tk.Tk()
-    # Hide the main window initially until we know we have data
     root.withdraw() 
-    
     app = SecureSwitcher(root)
-    
-    # If app loaded successfully, show window
-    root.deiconify()
     root.mainloop()
