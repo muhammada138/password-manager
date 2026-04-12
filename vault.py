@@ -87,8 +87,24 @@ class IncrementalVault:
         if app_name in self.data:
             del self.data[app_name]
 
+    def set_app_order(self, order_list):
+        if "__metadata__" not in self.data:
+            self.data["__metadata__"] = {}
+        self.data["__metadata__"]["app_order"] = order_list
+
     def get_apps(self):
-        return sorted(self.data.keys())
+        apps = [k for k in self.data.keys() if k != "__metadata__"]
+        order = self.data.get("__metadata__", {}).get("app_order", [])
+        return sorted(apps, key=lambda x: order.index(x) if x in order else len(order))
+
+    def set_account_order(self, app_name, order_list):
+        if "__metadata__" not in self.data:
+            self.data["__metadata__"] = {}
+        if "acc_order" not in self.data["__metadata__"]:
+            self.data["__metadata__"]["acc_order"] = {}
+        self.data["__metadata__"]["acc_order"][app_name] = order_list
 
     def get_accounts(self, app_name):
-        return sorted(self.data.get(app_name, {}).keys())
+        accounts = [k for k in self.data.get(app_name, {}).keys()]
+        order = self.data.get("__metadata__", {}).get("acc_order", {}).get(app_name, [])
+        return sorted(accounts, key=lambda x: order.index(x) if x in order else len(order))

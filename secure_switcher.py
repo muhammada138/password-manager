@@ -17,6 +17,77 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from vault import IncrementalVault
 
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def rgb_to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+class AnimatedHover:
+    def __init__(self, widget, normal_bg, hover_bg, normal_fg=None, hover_fg=None, steps=8, delay=15):
+        self.widget = widget
+        self.normal_bg = normal_bg
+        self.hover_bg = hover_bg
+        self.normal_fg = normal_fg
+        self.hover_fg = hover_fg
+        self.steps = steps
+        self.delay = delay
+        self.current_step = 0
+        self.animating_forward = False
+        self.job = None
+        
+        self.widget.bind("<Enter>", self.on_enter, add="+")
+        self.widget.bind("<Leave>", self.on_leave, add="+")
+
+    def on_enter(self, event):
+        self.animating_forward = True
+        self.animate()
+
+    def on_leave(self, event):
+        self.animating_forward = False
+        self.animate()
+
+    def animate(self):
+        if self.job:
+            try:
+                self.widget.after_cancel(self.job)
+            except:
+                pass
+        
+        if self.animating_forward and self.current_step < self.steps:
+            self.current_step += 1
+        elif not self.animating_forward and self.current_step > 0:
+            self.current_step -= 1
+        else:
+            return
+
+        c1 = hex_to_rgb(self.normal_bg)
+        c2 = hex_to_rgb(self.hover_bg)
+        r = c1[0] + (c2[0] - c1[0]) * (self.current_step / self.steps)
+        g = c1[1] + (c2[1] - c1[1]) * (self.current_step / self.steps)
+        b = c1[2] + (c2[2] - c1[2]) * (self.current_step / self.steps)
+        
+        kwargs = {'bg': rgb_to_hex((r, g, b))}
+        
+        if self.normal_fg and self.hover_fg:
+            f1 = hex_to_rgb(self.normal_fg)
+            f2 = hex_to_rgb(self.hover_fg)
+            fr = f1[0] + (f2[0] - f1[0]) * (self.current_step / self.steps)
+            fg = f1[1] + (f2[1] - f1[1]) * (self.current_step / self.steps)
+            fb = f1[2] + (f2[2] - f1[2]) * (self.current_step / self.steps)
+            kwargs['fg'] = rgb_to_hex((fr, fg, fb))
+            kwargs['activeforeground'] = kwargs['fg']
+
+        kwargs['activebackground'] = kwargs['bg']
+        
+        try:
+            self.widget.configure(**kwargs)
+            self.job = self.widget.after(self.delay, self.animate)
+        except tk.TclError:
+            pass
+
+
 class ToggleSwitch(tk.Canvas):
     def __init__(self, parent, variable, command=None, bg="#111827", active_color="#3b82f6", *args, **kwargs):
         super().__init__(parent, width=40, height=20, bg=bg, highlightthickness=0, cursor="hand2", *args, **kwargs)
@@ -43,6 +114,7 @@ class ToggleSwitch(tk.Canvas):
         if self.command:
             self.command()
 
+
 class ModernMenu(tk.Toplevel):
     def __init__(self, parent, x, y, options):
         super().__init__(parent)
@@ -61,9 +133,7 @@ class ModernMenu(tk.Toplevel):
                             relief="flat", bd=0, anchor="w", padx=15, cursor="hand2",
                             command=lambda c=command: self.execute(c))
             btn.pack(fill='x', ipady=6)
-            
-            btn.bind("<Enter>", lambda e, b=btn: b.configure(bg="#374151"))
-            btn.bind("<Leave>", lambda e, b=btn: b.configure(bg="#1f2937"))
+            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
             
         self.bind("<FocusOut>", lambda e: self.destroy())
         self.focus_force()
@@ -71,6 +141,7 @@ class ModernMenu(tk.Toplevel):
     def execute(self, command):
         command()
         self.destroy()
+
 
 class SecureSwitcher:
     def __init__(self, root):
@@ -135,13 +206,15 @@ class SecureSwitcher:
         
         close_btn = tk.Button(self.title_bar, text="✕", command=self.root.destroy, 
                               bg="#1f2937", fg="white", bd=0, font=("Arial", 12),
-                              activebackground="#3b82f6", activeforeground="white", cursor="hand2")
+                              activebackground="#e11d48", activeforeground="white", cursor="hand2")
         close_btn.pack(side='right', padx=10, pady=5)
+        AnimatedHover(close_btn, normal_bg="#1f2937", hover_bg="#e11d48")
         
         min_btn = tk.Button(self.title_bar, text="_", command=self.minimize_window,
                             bg="#1f2937", fg="white", bd=0, font=("Arial", 12, "bold"),
-                            activebackground="#1f2937", activeforeground="#3b82f6", cursor="hand2")
+                            activebackground="#3b82f6", activeforeground="white", cursor="hand2")
         min_btn.pack(side='right', padx=0, pady=5)
+        AnimatedHover(min_btn, normal_bg="#1f2937", hover_bg="#374151")
 
         self.title_bar.bind("<ButtonPress-1>", self.start_move)
         self.title_bar.bind("<B1-Motion>", self.do_move)
@@ -245,15 +318,13 @@ class SecureSwitcher:
         container.pack(fill='both', expand=True)
         
         canvas = tk.Canvas(container, bg="#111827", highlightthickness=0)
-        scrollbar = tk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        # Removed visual scrollbar to keep UI clean and modern
         
         scroll_frame = tk.Frame(canvas, bg="#111827")
         
         scroll_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
         window_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
@@ -262,10 +333,7 @@ class SecureSwitcher:
             canvas.itemconfig(window_id, width=event.width)
         
         canvas.bind('<Configure>', configure_canvas)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
         canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
         
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -285,33 +353,36 @@ class SecureSwitcher:
         bottom_frame = tk.Frame(self.content_frame, bg="#111827")
         bottom_frame.pack(side='bottom', fill='x', pady=10)
 
-        tk.Button(bottom_frame, text="+ NEW APPLICATION", 
+        add_btn = tk.Button(bottom_frame, text="+ NEW APPLICATION", 
                   font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
                   activebackground="#3b82f6", activeforeground="white",
                   relief="flat", bd=0, cursor="hand2",
-                  command=lambda: self.show_add_view(is_new_app=True)).pack(fill='x', pady=(0, 15), ipady=3)
+                  command=lambda: self.show_add_view(is_new_app=True))
+        add_btn.pack(fill='x', pady=(0, 15), ipady=5)
+        AnimatedHover(add_btn, normal_bg="#1f2937", hover_bg="#3b82f6", normal_fg="#f3f4f6", hover_fg="#ffffff")
 
         row1 = tk.Frame(bottom_frame, bg="#111827")
         row1.pack(fill='x', pady=5)
         ToggleSwitch(row1, self.startup_var, command=self.toggle_startup).pack(side='left')
-        tk.Label(row1, text="Start with Windows", bg="#111827", fg="#f3f4f6", font=("Segoe UI", 10)).pack(side='left', padx=10)
+        tk.Label(row1, text="Start with Windows", bg="#111827", fg="#9ca3af", font=("Segoe UI", 10)).pack(side='left', padx=10)
 
         row2 = tk.Frame(bottom_frame, bg="#111827")
         row2.pack(fill='x', pady=5)
         ToggleSwitch(row2, self.tray_var, command=self.save_settings).pack(side='left')
-        tk.Label(row2, text="Minimize to Tray", bg="#111827", fg="#f3f4f6", font=("Segoe UI", 10)).pack(side='left', padx=10)
+        tk.Label(row2, text="Minimize to Tray", bg="#111827", fg="#9ca3af", font=("Segoe UI", 10)).pack(side='left', padx=10)
 
         scroll_frame = self.create_scrollable_frame(self.content_frame)
         
         for app_name in self.vault.get_apps():
             btn = tk.Button(scroll_frame, text=app_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
-                          bg="#f3f4f6", fg="#111827",
-                          activebackground="#3b82f6", activeforeground="white",
+                          bg="#1f2937", fg="#f3f4f6",
+                          activebackground="#374151", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=app_name: self.show_accounts_view(n))
-            btn.pack(fill='x', pady=5, ipady=5)
+            btn.pack(fill='x', pady=4, ipady=6)
+            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
             
             btn.bind("<Button-3>", lambda event, n=app_name: self.show_app_context_menu(event, n))
 
@@ -323,18 +394,22 @@ class SecureSwitcher:
         header = tk.Frame(self.content_frame, bg="#111827")
         header.pack(fill='x', pady=(0, 15), side='top')
         
-        tk.Button(header, text="<", font=("Segoe UI", 12, "bold"), 
-                  bg="#111827", fg="#3b82f6", bd=0, activebackground="#111827", activeforeground="white",
-                  cursor="hand2", command=self.show_apps_view).pack(side='left')
+        back_btn = tk.Button(header, text="<", font=("Segoe UI", 14, "bold"), 
+                  bg="#111827", fg="#6b7280", bd=0, activebackground="#111827", activeforeground="#f3f4f6",
+                  cursor="hand2", command=self.show_apps_view)
+        back_btn.pack(side='left')
+        AnimatedHover(back_btn, normal_bg="#111827", hover_bg="#111827", normal_fg="#6b7280", hover_fg="#f3f4f6")
                   
         tk.Label(header, text=app_name.upper(), font=("Segoe UI", 14, "bold"), 
                  bg="#111827", fg="#f3f4f6").pack(side='left', padx=10)
 
-        tk.Button(self.content_frame, text="+ ADD ACCOUNT", 
+        add_btn = tk.Button(self.content_frame, text="+ ADD ACCOUNT", 
                   font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
                   activebackground="#3b82f6", activeforeground="white",
                   relief="flat", bd=0, cursor="hand2",
-                  command=lambda: self.show_add_view(prefill_app=app_name)).pack(side='bottom', fill='x', pady=20, ipady=3)
+                  command=lambda: self.show_add_view(prefill_app=app_name))
+        add_btn.pack(side='bottom', fill='x', pady=20, ipady=5)
+        AnimatedHover(add_btn, normal_bg="#1f2937", hover_bg="#3b82f6", normal_fg="#f3f4f6", hover_fg="#ffffff")
 
         scroll_frame = self.create_scrollable_frame(self.content_frame)
 
@@ -342,12 +417,13 @@ class SecureSwitcher:
         for acc_name in accounts:
             btn = tk.Button(scroll_frame, text=acc_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
-                          bg="#f3f4f6", fg="#111827",
-                          activebackground="#3b82f6", activeforeground="white",
+                          bg="#1f2937", fg="#f3f4f6",
+                          activebackground="#374151", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=acc_name: self.execute_login(app_name, n))
-            btn.pack(fill='x', pady=5, ipady=5)
+            btn.pack(fill='x', pady=4, ipady=6)
+            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
             
             btn.bind("<Button-3>", lambda event, n=acc_name: self.show_account_context_menu(event, app_name, n))
 
@@ -359,22 +435,22 @@ class SecureSwitcher:
         tk.Label(self.content_frame, text=title_text, font=("Segoe UI", 14, "bold"), 
                  bg="#111827", fg="#f3f4f6").pack(anchor='w', pady=(0, 20))
 
-        lbl_style = {"bg": "#111827", "fg": "#f3f4f6", "font": ("Segoe UI", 10)}
-        entry_style = {"bg": "#1f2937", "fg": "white", "insertbackground": "white", "relief": "flat"}
+        lbl_style = {"bg": "#111827", "fg": "#9ca3af", "font": ("Segoe UI", 10)}
+        entry_style = {"bg": "#1f2937", "fg": "white", "insertbackground": "white", "relief": "flat", "font": ("Segoe UI", 10)}
 
         tk.Label(self.content_frame, text="Application", **lbl_style).pack(anchor='w', pady=(5, 2))
         app_entry = tk.Entry(self.content_frame, **entry_style)
-        app_entry.pack(fill='x', ipady=5, pady=(0, 10))
+        app_entry.pack(fill='x', ipady=6, pady=(0, 10))
         if prefill_app: app_entry.insert(0, prefill_app)
         if edit_app: app_entry.insert(0, edit_app)
 
         tk.Label(self.content_frame, text="Account Name", **lbl_style).pack(anchor='w', pady=(5, 2))
         name_entry = tk.Entry(self.content_frame, **entry_style)
-        name_entry.pack(fill='x', ipady=5, pady=(0, 10))
+        name_entry.pack(fill='x', ipady=6, pady=(0, 10))
 
         tk.Label(self.content_frame, text="Username", **lbl_style).pack(anchor='w', pady=(5, 2))
         user_entry = tk.Entry(self.content_frame, **entry_style)
-        user_entry.pack(fill='x', ipady=5, pady=(0, 10))
+        user_entry.pack(fill='x', ipady=6, pady=(0, 10))
 
         pass_frame = tk.Frame(self.content_frame, bg="#111827")
         pass_frame.pack(fill='x', pady=(5, 2))
@@ -383,17 +459,17 @@ class SecureSwitcher:
         def toggle_pass_view():
             if pass_entry.cget('show') == '*':
                 pass_entry.config(show='')
-                show_btn.config(text="Hide")
+                show_btn.config(text="Hide", fg="#3b82f6")
             else:
                 pass_entry.config(show='*')
-                show_btn.config(text="Show")
+                show_btn.config(text="Show", fg="#6b7280")
 
         show_btn = tk.Button(pass_frame, text="Show", command=toggle_pass_view,
-                             bg="#111827", fg="#3b82f6", bd=0, font=("Segoe UI", 8), cursor="hand2", activebackground="#111827")
+                             bg="#111827", fg="#6b7280", bd=0, font=("Segoe UI", 9), cursor="hand2", activebackground="#111827", activeforeground="#f3f4f6")
         show_btn.pack(side='right')
 
         pass_entry = tk.Entry(self.content_frame, show="*", **entry_style)
-        pass_entry.pack(fill='x', ipady=5, pady=(0, 10))
+        pass_entry.pack(fill='x', ipady=6, pady=(0, 10))
 
         riot_var = tk.BooleanVar(value=False)
         riot_frame = tk.Frame(self.content_frame, bg="#111827")
@@ -438,24 +514,52 @@ class SecureSwitcher:
         btn_frame = tk.Frame(self.content_frame, bg="#111827")
         btn_frame.pack(fill='x', pady=10)
 
-        tk.Button(btn_frame, text="SAVE", command=save, bg="#3b82f6", fg="white",
-                  font=("Segoe UI", 10, "bold"), relief="flat", width=10).pack(side='left')
+        save_btn = tk.Button(btn_frame, text="SAVE", command=save, bg="#3b82f6", fg="white",
+                  font=("Segoe UI", 10, "bold"), relief="flat", width=12)
+        save_btn.pack(side='left', ipady=3)
+        AnimatedHover(save_btn, normal_bg="#3b82f6", hover_bg="#2563eb")
         
-        tk.Button(btn_frame, text="CANCEL", command=cancel, bg="#1f2937", fg="white",
-                  font=("Segoe UI", 10, "bold"), relief="flat", width=10).pack(side='right')
+        cancel_btn = tk.Button(btn_frame, text="CANCEL", command=cancel, bg="#1f2937", fg="#f3f4f6",
+                  font=("Segoe UI", 10, "bold"), relief="flat", width=12)
+        cancel_btn.pack(side='right', ipady=3)
+        AnimatedHover(cancel_btn, normal_bg="#1f2937", hover_bg="#374151")
 
     def show_app_context_menu(self, event, app_name):
         options = [
+            ("Move Up", lambda: self.move_app(app_name, -1)),
+            ("Move Down", lambda: self.move_app(app_name, 1)),
             (f"Delete {app_name}", lambda: self.delete_app(app_name))
         ]
         ModernMenu(self.root, event.x_root, event.y_root, options)
 
+    def move_app(self, app_name, direction):
+        apps = self.vault.get_apps()
+        idx = apps.index(app_name)
+        new_idx = idx + direction
+        if 0 <= new_idx < len(apps):
+            apps.insert(new_idx, apps.pop(idx))
+            self.vault.set_app_order(apps)
+            self.vault.save()
+            self.show_apps_view()
+
     def show_account_context_menu(self, event, app_name, acc_name):
         options = [
+            ("Move Up", lambda: self.move_account(app_name, acc_name, -1)),
+            ("Move Down", lambda: self.move_account(app_name, acc_name, 1)),
             (f"Edit {acc_name}", lambda: self.show_add_view(edit_app=app_name, edit_name=acc_name)),
             (f"Delete {acc_name}", lambda: self.delete_account(app_name, acc_name))
         ]
         ModernMenu(self.root, event.x_root, event.y_root, options)
+
+    def move_account(self, app_name, acc_name, direction):
+        accounts = self.vault.get_accounts(app_name)
+        idx = accounts.index(acc_name)
+        new_idx = idx + direction
+        if 0 <= new_idx < len(accounts):
+            accounts.insert(new_idx, accounts.pop(idx))
+            self.vault.set_account_order(app_name, accounts)
+            self.vault.save()
+            self.show_accounts_view(app_name)
 
     def delete_app(self, app_name):
         if messagebox.askyesno("Confirm", f"Delete entire application '{app_name}' and all passwords?"):
