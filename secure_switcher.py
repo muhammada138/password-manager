@@ -699,7 +699,11 @@ class SecureSwitcher:
             self.startup_var.set(not self.startup_var.get())
 
 if __name__ == "__main__":
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    if getattr(sys, 'frozen', False):
+        application_path = os.path.dirname(sys.executable)
+    elif __file__:
+        application_path = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(application_path)
     root = tk.Tk()
     root.withdraw() 
     app = SecureSwitcher(root)
