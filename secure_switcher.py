@@ -496,22 +496,27 @@ class SecureSwitcher:
             dn_btn.pack(side="left", fill="y", ipadx=6)
             ctrl_frame.place(relx=1.0, rely=0.5, anchor="e", relheight=1.0)
             
-            def make_hover(u, d, frm, b):
+            def make_hover(u, d, frm, parent_frame):
                 def on_enter(e):
                     u.config(fg="#9ca3af", bg="#374151")
                     d.config(fg="#9ca3af", bg="#374151")
                     frm.config(bg="#374151")
                 def on_leave(e):
-                    rx, ry = b.winfo_rootx(), b.winfo_rooty()
-                    rw, rh = b.winfo_width(), b.winfo_height()
-                    if rx <= e.x_root <= rx + rw and ry <= e.y_root <= ry + rh:
-                        return
+                    try:
+                        x, y = parent_frame.winfo_pointerxy()
+                        widget = parent_frame.winfo_containing(x, y)
+                        widget_path = str(widget)
+                        parent_path = str(parent_frame)
+                        if widget_path == parent_path or widget_path.startswith(parent_path + "."):
+                            return
+                    except:
+                        pass
                     u.config(fg="#1f2937", bg="#1f2937")
                     d.config(fg="#1f2937", bg="#1f2937")
                     frm.config(bg="#1f2937")
                 return on_enter, on_leave
             
-            on_enter, on_leave = make_hover(up_btn, dn_btn, ctrl_frame, btn)
+            on_enter, on_leave = make_hover(up_btn, dn_btn, ctrl_frame, item_frame)
             
             btn.bind("<Enter>", on_enter, add="+")
             btn.bind("<Leave>", on_leave, add="+")
