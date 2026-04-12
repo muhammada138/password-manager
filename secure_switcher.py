@@ -17,6 +17,13 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from vault import IncrementalVault
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -152,8 +159,9 @@ class SecureSwitcher:
         self.root.overrideredirect(True) 
         self.root.attributes('-topmost', True)
         
-        if os.path.exists("vault_icon.ico"):
-            self.root.iconbitmap("vault_icon.ico")
+        icon_path = resource_path("vault_icon.ico")
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
         
         self.vault = None
         self.current_app = None
@@ -182,8 +190,20 @@ class SecureSwitcher:
         tk.Label(self.content_frame, text="UNLOCKING VAULT...", font=("Segoe UI", 12, "bold"), 
                  bg="#111827", fg="#3b82f6").pack(expand=True)
 
+    def set_appwindow(self):
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+            style = style & ~0x00000080 | 0x00040000
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, style)
+            self.root.withdraw()
+            self.root.deiconify()
+        except:
+            pass
+
     def prompt_password(self):
         self.root.deiconify()
+        self.set_appwindow()
         pwd = simpledialog.askstring("OmniVault Login", "Enter Vault Password:", show='*', parent=self.root)
         if not pwd:
             self.root.destroy()
@@ -281,6 +301,7 @@ class SecureSwitcher:
         if not self.root.overrideredirect():
             self.root.overrideredirect(True)
             self.root.unbind('<Map>')
+        self.set_appwindow()
         self.root.lift()
         self.root.focus_force()
 
