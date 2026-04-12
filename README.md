@@ -17,7 +17,8 @@ OmniVault is a secure, offline-first password manager built with Python and Tkin
 
 - **Military-Grade Encryption** - Stores credentials in an encrypted binary vault (`my_vault.bin`) using Fernet (AES-128 in CBC mode) with a PBKDF2HMAC (SHA-256) derived key.
 - **Local-Only Storage** - Zero cloud connectivity. Your data never leaves your machine.
-- **Frameless Modern UI** - A sleek, custom Tkinter interface with a slate and blue color scheme, custom toggle switches, and hover effects.
+- **Frameless Modern UI** - A sleek, custom Tkinter interface with a slate and blue color scheme, custom toggle switches, memory-efficient color-fade hover animations, and a draggable reordering system.
+- **Standalone Executable** - OmniVault can be compiled into a single `.exe` file that natively bundles its custom icon and runs completely standalone.
 - **System Tray Integration** - Runs quietly in the background (via `pystray`) and can be summoned instantly via a global hotkey (`Ctrl + P`).
 - **"Click & Type" Omni Login** - To prevent clipboard sniffing, OmniVault uses PyAutoGUI to simulate human keystrokes directly into targeted input fields. You click the login button, wait for the mouse release, then click the target username/email field, and the app types it out for you.
 - **Start with Windows** - Optional registry toggle to automatically launch the vault when you boot your PC.
