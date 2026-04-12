@@ -1,0 +1,7 @@
+my_vault.bin
+key.key
+settings.json
+credentials.txt
+__pycache__/
+*.pyc
+.env
