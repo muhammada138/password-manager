@@ -374,15 +374,42 @@ class SecureSwitcher:
         scroll_frame = self.create_scrollable_frame(self.content_frame)
         
         for app_name in self.vault.get_apps():
-            btn = tk.Button(scroll_frame, text=app_name.upper(), 
+            item_frame = tk.Frame(scroll_frame, bg="#1f2937")
+            item_frame.pack(fill='x', pady=4)
+            
+            btn = tk.Button(item_frame, text=app_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
                           bg="#1f2937", fg="#f3f4f6",
                           activebackground="#374151", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=app_name: self.show_accounts_view(n))
-            btn.pack(fill='x', pady=4, ipady=6)
+            btn.pack(side='left', fill='both', expand=True, ipady=6)
             AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
+            
+            ctrl_frame = tk.Frame(item_frame, bg="#1f2937")
+            up_btn = tk.Button(ctrl_frame, text="▲", font=("Arial", 9), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=app_name: self.move_app(n, -1))
+            dn_btn = tk.Button(ctrl_frame, text="▼", font=("Arial", 9), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=app_name: self.move_app(n, 1))
+            
+            up_btn.pack(side="left", fill="y", ipadx=8)
+            dn_btn.pack(side="left", fill="y", ipadx=8)
+            ctrl_frame.pack(side="right", fill="y")
+            
+            def make_hover(u, d):
+                def on_enter(e):
+                    u.config(fg="#9ca3af", bg="#1f2937")
+                    d.config(fg="#9ca3af", bg="#1f2937")
+                def on_leave(e):
+                    u.config(fg="#1f2937", bg="#1f2937")
+                    d.config(fg="#1f2937", bg="#1f2937")
+                return on_enter, on_leave
+            
+            on_enter, on_leave = make_hover(up_btn, dn_btn)
+            
+            item_frame.bind("<Enter>", on_enter)
+            item_frame.bind("<Leave>", on_leave)
+            btn.bind("<Enter>", on_enter, add="+")
+            btn.bind("<Leave>", on_leave, add="+")
             
             btn.bind("<Button-3>", lambda event, n=app_name: self.show_app_context_menu(event, n))
 
@@ -415,15 +442,42 @@ class SecureSwitcher:
 
         accounts = self.vault.get_accounts(app_name)
         for acc_name in accounts:
-            btn = tk.Button(scroll_frame, text=acc_name.upper(), 
+            item_frame = tk.Frame(scroll_frame, bg="#1f2937")
+            item_frame.pack(fill='x', pady=4)
+            
+            btn = tk.Button(item_frame, text=acc_name.upper(), 
                           font=("Segoe UI", 11, "bold"),
                           bg="#1f2937", fg="#f3f4f6",
                           activebackground="#374151", activeforeground="white",
                           relief="flat", bd=0,
                           cursor="hand2",
                           command=lambda n=acc_name: self.execute_login(app_name, n))
-            btn.pack(fill='x', pady=4, ipady=6)
+            btn.pack(side='left', fill='both', expand=True, ipady=6)
             AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
+            
+            ctrl_frame = tk.Frame(item_frame, bg="#1f2937")
+            up_btn = tk.Button(ctrl_frame, text="▲", font=("Arial", 9), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=acc_name: self.move_account(app_name, n, -1))
+            dn_btn = tk.Button(ctrl_frame, text="▼", font=("Arial", 9), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=acc_name: self.move_account(app_name, n, 1))
+            
+            up_btn.pack(side="left", fill="y", ipadx=8)
+            dn_btn.pack(side="left", fill="y", ipadx=8)
+            ctrl_frame.pack(side="right", fill="y")
+            
+            def make_hover(u, d):
+                def on_enter(e):
+                    u.config(fg="#9ca3af", bg="#1f2937")
+                    d.config(fg="#9ca3af", bg="#1f2937")
+                def on_leave(e):
+                    u.config(fg="#1f2937", bg="#1f2937")
+                    d.config(fg="#1f2937", bg="#1f2937")
+                return on_enter, on_leave
+            
+            on_enter, on_leave = make_hover(up_btn, dn_btn)
+            
+            item_frame.bind("<Enter>", on_enter)
+            item_frame.bind("<Leave>", on_leave)
+            btn.bind("<Enter>", on_enter, add="+")
+            btn.bind("<Leave>", on_leave, add="+")
             
             btn.bind("<Button-3>", lambda event, n=acc_name: self.show_account_context_menu(event, app_name, n))
 
