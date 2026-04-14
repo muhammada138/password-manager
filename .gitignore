@@ -1,4 +1,5 @@
-my_vault.bin
+*.bin
+*.bak
 key.key
 settings.json
 credentials.txt
@@ -9,4 +10,3 @@ build/
 dist/
 *.spec
 *.exe
-*.bak
