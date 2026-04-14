@@ -15,7 +15,7 @@ OmniVault is a secure, offline-first password manager built with Python and PyQt
 
 **Key features:**
 
-- **Enterprise-Grade Cryptography** - Stores credentials in an encrypted binary vault (`my_vault.bin`) using Fernet (AES-128 in CBC mode) with a PBKDF2HMAC (SHA-256, 200,000 iterations) derived key.
+- **Layered Cryptography** - Stores credentials in an encrypted binary vault (`my_vault.bin`) using Fernet (AES-128 in CBC mode) with a PBKDF2HMAC (SHA-256, 200,000 iterations) derived key.
 - **HMAC-SHA256 Integrity Layer** - Employs an Encrypt-then-MAC architecture utilizing `hmac.compare_digest` to verify ciphertexts before decryption, preventing tampering.
 - **Secure Memory Wiping** - Custom `SecureString` context manager leveraging `ctypes.memset` to zeroize the master password from memory immediately after key derivation.
 - **Local-Only Storage** - Zero cloud connectivity. Your data never leaves your machine.
