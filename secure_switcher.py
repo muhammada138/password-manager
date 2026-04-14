@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from pynput import keyboard, mouse
 import pyautogui
+from vault import IncrementalVault
 
 STYLE_SHEET = """
 QMainWindow {
