@@ -1,32 +1,83 @@
 import json
 import os
 import base64
-from cryptography.fernet import Fernet
+import ctypes
+import hmac
+import hashlib
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.exceptions import InvalidKey
+
+class SecureString:
+    """Context manager for securely handling sensitive strings, zeroing memory after use."""
+    def __init__(self, string_data):
+        if isinstance(string_data, str):
+            string_data = string_data.encode('utf-8')
+        self._length = len(string_data)
+        self._buffer = ctypes.create_string_buffer(string_data)
+
+    def get_bytes(self):
+        if not self._buffer:
+            raise RuntimeError("SecureString has been cleared.")
+        return self._buffer.raw[:self._length]
+
+    def get_str(self):
+        return self.get_bytes().decode('utf-8')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.clear()
+
+    def clear(self):
+        if self._buffer:
+            ctypes.memset(ctypes.addressof(self._buffer), 0, self._length)
+            self._buffer = None
 
 class IncrementalVault:
-    def __init__(self, password, vault_path="my_vault.bin"):
-        self.password = password
+    def __init__(self, password: str, vault_path="my_vault.bin"):
+        self._password = password
         self.vault_path = vault_path
         self.salt = None
-        self.fernet = None
-        self.data = {} # {app_name: {acc_name: encrypted_entry_blob}}
+        self.fernet_key = None
+        self.hmac_key = None
+        self.data = {}
 
-    def _derive_key(self, salt):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-        )
-        return base64.urlsafe_b64encode(kdf.derive(self.password.encode()))
+    def _derive_keys(self, salt):
+        with SecureString(self._password) as sec_pw:
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=64,
+                salt=salt,
+                iterations=200000,
+            )
+            derived = kdf.derive(sec_pw.get_bytes())
+            self.fernet_key = base64.urlsafe_b64encode(derived[:32])
+            self.hmac_key = derived[32:]
+
+    def _encrypt_data(self, data: bytes) -> bytes:
+        f = Fernet(self.fernet_key)
+        ciphertext = f.encrypt(data)
+        h = hmac.new(self.hmac_key, ciphertext, hashlib.sha256)
+        return ciphertext + h.digest()
+
+    def _decrypt_data(self, data: bytes) -> bytes:
+        if len(data) < 32:
+            raise ValueError("Data too short")
+        ciphertext = data[:-32]
+        mac = data[-32:]
+        h = hmac.new(self.hmac_key, ciphertext, hashlib.sha256)
+        if not hmac.compare_digest(h.digest(), mac):
+            raise InvalidKey("HMAC integrity check failed")
+        f = Fernet(self.fernet_key)
+        return f.decrypt(ciphertext)
 
     def load(self, callback=None):
-        """Load the vault index. Decryption happens in a way that can be offloaded."""
         if not os.path.exists(self.vault_path):
             self.salt = os.urandom(16)
-            self.fernet = Fernet(self._derive_key(self.salt))
+            self._derive_keys(self.salt)
             self.data = {}
             if callback: callback(True)
             return True
@@ -36,9 +87,9 @@ class IncrementalVault:
                 self.salt = f.read(16)
                 encrypted_data = f.read()
             
-            self.fernet = Fernet(self._derive_key(self.salt))
-            decrypted_data = self.fernet.decrypt(encrypted_data)
-            self.data = json.loads(decrypted_data.decode())
+            self._derive_keys(self.salt)
+            decrypted_data = self._decrypt_data(encrypted_data)
+            self.data = json.loads(decrypted_data.decode('utf-8'))
             
             if callback: callback(True)
             return True
@@ -47,34 +98,32 @@ class IncrementalVault:
             return False
 
     def save(self):
-        """Save the vault index."""
-        json_data = json.dumps(self.data).encode()
-        encrypted_data = self.fernet.encrypt(json_data)
+        json_data = json.dumps(self.data).encode('utf-8')
+        encrypted_data = self._encrypt_data(json_data)
         with open(self.vault_path, "wb") as f:
             f.write(self.salt + encrypted_data)
 
     def get_entry(self, app_name, acc_name):
-        """Decrypt and return a single entry on demand."""
         encrypted_entry = self.data.get(app_name, {}).get(acc_name)
         if not encrypted_entry:
             return None
         
-        # If it's already a dict, it's an old format or already decrypted
         if isinstance(encrypted_entry, dict):
             return encrypted_entry
             
         try:
-            decrypted_entry = self.fernet.decrypt(encrypted_entry.encode())
-            return json.loads(decrypted_entry.decode())
+            encrypted_bytes = base64.b64decode(encrypted_entry.encode('ascii'))
+            decrypted_entry = self._decrypt_data(encrypted_bytes)
+            return json.loads(decrypted_entry.decode('utf-8'))
         except Exception:
             return None
 
     def set_entry(self, app_name, acc_name, entry_dict):
-        """Encrypt and store a single entry."""
         if app_name not in self.data:
             self.data[app_name] = {}
         
-        encrypted_entry = self.fernet.encrypt(json.dumps(entry_dict).encode()).decode()
+        encrypted_bytes = self._encrypt_data(json.dumps(entry_dict).encode('utf-8'))
+        encrypted_entry = base64.b64encode(encrypted_bytes).decode('ascii')
         self.data[app_name][acc_name] = encrypted_entry
 
     def delete_entry(self, app_name, acc_name):
