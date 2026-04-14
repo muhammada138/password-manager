@@ -5,11 +5,13 @@ import os
 import threading
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QStackedWidget, QFrame, QMessageBox, QDialog, QFormLayout, QCheckBox)
+                             QStackedWidget, QFrame, QMessageBox, QDialog, QFormLayout, QCheckBox,
+                             QMenu, QInputDialog, QAbstractItemView)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from pynput import keyboard, mouse
 import pyautogui
 from vault import IncrementalVault
+import ctypes
 
 STYLE_SHEET = """
 QMainWindow {
@@ -56,11 +58,6 @@ QWidget {
 }
 #Sidebar QPushButton:hover {
     background-color: #334155;
-}
-#Sidebar QPushButton:checked {
-    background-color: #38BDF8;
-    color: #0F172A;
-    font-weight: bold;
 }
 #ContentArea {
     background-color: #0F172A;
@@ -114,6 +111,25 @@ QListWidget::item:selected {
     background-color: #334155;
     border: 1px solid #38BDF8;
 }
+#AppList {
+    background-color: #1E293B;
+}
+#AppList::item {
+    background-color: transparent;
+    color: #F8FAFC;
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin: 4px 10px;
+    font-size: 13px;
+}
+#AppList::item:hover {
+    background-color: #334155;
+}
+#AppList::item:selected {
+    background-color: #38BDF8;
+    color: #0F172A;
+    font-weight: bold;
+}
 QScrollBar:vertical {
     border: none;
     background: #0F172A;
@@ -134,6 +150,18 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 QDialog {
     background-color: #0F172A;
+}
+QMenu {
+    background-color: #1E293B;
+    color: white;
+    border: 1px solid #334155;
+}
+QMenu::item {
+    padding: 6px 20px;
+}
+QMenu::item:selected {
+    background-color: #38BDF8;
+    color: #0F172A;
 }
 """
 
@@ -272,6 +300,9 @@ class AccountDialog(QDialog):
         self.setStyleSheet(STYLE_SHEET)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         
+        self.old_app_name = app_name
+        self.old_acc_name = acc_name
+        
         layout = QVBoxLayout(self)
         
         title = QLabel("Add / Edit Account")
@@ -311,8 +342,8 @@ class AccountDialog(QDialog):
 
     def get_data(self):
         return {
-            "app_name": self.app_input.text(),
-            "acc_name": self.acc_input.text(),
+            "app_name": self.app_input.text().strip(),
+            "acc_name": self.acc_input.text().strip(),
             "username": self.user_input.text(),
             "password": self.pwd_input.text(),
             "riot_logic": self.riot_check.isChecked()
@@ -336,11 +367,14 @@ class MainScreen(QWidget):
         sidebar_layout.setContentsMargins(0, 20, 0, 20)
         sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
-        self.app_list = QVBoxLayout()
-        self.app_list.setSpacing(0)
-        sidebar_layout.addLayout(self.app_list)
-        
-        sidebar_layout.addStretch()
+        self.app_list = QListWidget()
+        self.app_list.setObjectName("AppList")
+        self.app_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.app_list.model().rowsMoved.connect(self.save_app_order)
+        self.app_list.itemClicked.connect(self.on_app_clicked)
+        self.app_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.app_list.customContextMenuRequested.connect(self.show_app_context_menu)
+        sidebar_layout.addWidget(self.app_list)
         
         self.add_app_btn = QPushButton("+ New Account")
         self.add_app_btn.setProperty("class", "secondary")
@@ -365,7 +399,11 @@ class MainScreen(QWidget):
         content_layout.addWidget(self.search_input)
         
         self.cred_list = QListWidget()
+        self.cred_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.cred_list.model().rowsMoved.connect(self.save_cred_order)
         self.cred_list.itemClicked.connect(self.on_item_clicked)
+        self.cred_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.cred_list.customContextMenuRequested.connect(self.show_cred_context_menu)
         content_layout.addWidget(self.cred_list)
         
         layout.addWidget(self.content_area)
@@ -377,20 +415,15 @@ class MainScreen(QWidget):
         self.refresh_sidebar()
         
     def refresh_sidebar(self):
-        for i in reversed(range(self.app_list.count())): 
-            widget = self.app_list.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
-                
+        self.app_list.clear()
         if not self.vault:
             return
             
         apps = self.vault.get_apps()
         for app in apps:
-            btn = QPushButton(app.upper())
-            btn.setCheckable(True)
-            btn.clicked.connect(lambda checked, a=app: self.select_app(a))
-            self.app_list.addWidget(btn)
+            item = QListWidgetItem(app.upper())
+            item.setData(Qt.ItemDataRole.UserRole, app)
+            self.app_list.addItem(item)
             
         if apps:
             self.select_app(apps[0])
@@ -401,11 +434,14 @@ class MainScreen(QWidget):
     def select_app(self, app_name):
         self.current_app = app_name
         for i in range(self.app_list.count()):
-            btn = self.app_list.itemAt(i).widget()
-            if isinstance(btn, QPushButton):
-                btn.setChecked(btn.text().lower() == app_name.lower())
-                
+            item = self.app_list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == app_name:
+                self.app_list.setCurrentItem(item)
         self.refresh_credentials()
+
+    def on_app_clicked(self, item):
+        app_name = item.data(Qt.ItemDataRole.UserRole)
+        self.select_app(app_name)
         
     def refresh_credentials(self):
         self.cred_list.clear()
@@ -425,6 +461,24 @@ class MainScreen(QWidget):
             item = self.cred_list.item(i)
             item.setHidden(text.lower() not in item.text().lower())
 
+    def save_app_order(self, parent, start, end, destination, row):
+        if not self.vault: return
+        order = []
+        for i in range(self.app_list.count()):
+            item = self.app_list.item(i)
+            order.append(item.data(Qt.ItemDataRole.UserRole))
+        self.vault.set_app_order(order)
+        self.vault.save()
+
+    def save_cred_order(self, parent, start, end, destination, row):
+        if not self.vault or not self.current_app: return
+        order = []
+        for i in range(self.cred_list.count()):
+            item = self.cred_list.item(i)
+            order.append(item.data(Qt.ItemDataRole.UserRole))
+        self.vault.set_account_order(self.current_app, order)
+        self.vault.save()
+
     def add_account(self):
         dialog = AccountDialog(self, app_name=self.current_app or "")
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -438,6 +492,85 @@ class MainScreen(QWidget):
                 self.vault.save()
                 self.refresh_sidebar()
                 self.select_app(data["app_name"])
+
+    def show_app_context_menu(self, pos):
+        item = self.app_list.itemAt(pos)
+        if not item: return
+        
+        app_name = item.data(Qt.ItemDataRole.UserRole)
+        menu = QMenu()
+        rename_action = menu.addAction("Rename Category")
+        delete_action = menu.addAction("Delete Category")
+        
+        action = menu.exec(self.app_list.mapToGlobal(pos))
+        if action == rename_action:
+            new_name, ok = QInputDialog.getText(self, "Rename Category", "New Name:", text=app_name)
+            if ok and new_name and new_name != app_name:
+                if new_name in self.vault.data:
+                    QMessageBox.warning(self, "Error", "Category already exists!")
+                    return
+                self.vault.data[new_name] = self.vault.data.pop(app_name)
+                
+                # Update ordering
+                apps = self.vault.get_apps()
+                if app_name in apps:
+                    apps[apps.index(app_name)] = new_name
+                    self.vault.set_app_order(apps)
+                
+                # Update acc ordering if any
+                if "__metadata__" in self.vault.data and "acc_order" in self.vault.data["__metadata__"]:
+                    if app_name in self.vault.data["__metadata__"]["acc_order"]:
+                        self.vault.data["__metadata__"]["acc_order"][new_name] = self.vault.data["__metadata__"]["acc_order"].pop(app_name)
+                
+                self.vault.save()
+                self.refresh_sidebar()
+                self.select_app(new_name)
+                
+        elif action == delete_action:
+            confirm = QMessageBox.question(self, "Delete Category", f"Delete '{app_name}' and all its accounts?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if confirm == QMessageBox.StandardButton.Yes:
+                self.vault.delete_app(app_name)
+                self.vault.save()
+                self.refresh_sidebar()
+
+    def show_cred_context_menu(self, pos):
+        item = self.cred_list.itemAt(pos)
+        if not item: return
+        
+        acc_name = item.data(Qt.ItemDataRole.UserRole)
+        menu = QMenu()
+        edit_action = menu.addAction("Edit")
+        delete_action = menu.addAction("Delete")
+        
+        action = menu.exec(self.cred_list.mapToGlobal(pos))
+        if action == edit_action:
+            data = self.vault.get_entry(self.current_app, acc_name)
+            if not data: return
+            
+            dialog = AccountDialog(self, app_name=self.current_app, acc_name=acc_name, 
+                                   username=data.get("username", ""), password=data.get("password", ""), 
+                                   riot_logic=data.get("riot_logic", False))
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                new_data = dialog.get_data()
+                if new_data["app_name"] and new_data["acc_name"]:
+                    if dialog.old_app_name != new_data["app_name"] or dialog.old_acc_name != new_data["acc_name"]:
+                        self.vault.delete_entry(dialog.old_app_name, dialog.old_acc_name)
+                        
+                    self.vault.set_entry(new_data["app_name"], new_data["acc_name"], {
+                        "username": new_data["username"],
+                        "password": new_data["password"],
+                        "riot_logic": new_data["riot_logic"]
+                    })
+                    self.vault.save()
+                    self.refresh_sidebar()
+                    self.select_app(new_data["app_name"])
+                    
+        elif action == delete_action:
+            confirm = QMessageBox.question(self, "Delete Account", f"Delete '{acc_name}'?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if confirm == QMessageBox.StandardButton.Yes:
+                self.vault.delete_entry(self.current_app, acc_name)
+                self.vault.save()
+                self.refresh_credentials()
 
     def on_item_clicked(self, item):
         acc_name = item.data(Qt.ItemDataRole.UserRole)
