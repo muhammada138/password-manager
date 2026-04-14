@@ -39,7 +39,8 @@ def set_startup(enable):
     try:
         registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_WRITE)
         if enable:
-            winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, exe_path)
+            # Add --startup flag so it knows to start in tray
+            winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, f'"{exe_path}" --startup')
         else:
             winreg.DeleteValue(registry_key, app_name)
         winreg.CloseKey(registry_key)
@@ -895,6 +896,12 @@ class OmniVaultApp(QMainWindow):
         self.login_screen.pwd_input.clear()
 
 def main():
+    # Set working directory to the location of the executable or script
+    # to ensure relative paths for vault and settings work correctly
+    # especially when started by Windows at boot
+    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    os.chdir(base_dir)
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     
