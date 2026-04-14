@@ -2,41 +2,78 @@ import sys
 import time
 import math
 import os
+import json
 import threading
+import winreg
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                              QStackedWidget, QFrame, QMessageBox, QDialog, QFormLayout, QCheckBox,
-                             QMenu, QInputDialog, QAbstractItemView)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+                             QMenu, QInputDialog, QAbstractItemView, QSystemTrayIcon, QGraphicsDropShadowEffect)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPoint
+from PyQt6.QtGui import QIcon, QAction, QColor
 from pynput import keyboard, mouse
 import pyautogui
-from vault import IncrementalVault
 import ctypes
+
+from vault import IncrementalVault
+
+SETTINGS_FILE = "settings.json"
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"tray": True, "startup": False}
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f)
+
+def set_startup(enable):
+    key = r"Software\Microsoft\Windows\CurrentVersion\Run"
+    app_name = "OmniVault"
+    exe_path = os.path.abspath(sys.argv[0])
+    try:
+        registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_WRITE)
+        if enable:
+            winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, exe_path)
+        else:
+            winreg.DeleteValue(registry_key, app_name)
+        winreg.CloseKey(registry_key)
+    except Exception:
+        pass
 
 STYLE_SHEET = """
 QMainWindow {
-    background-color: #0F172A;
+    background-color: #0B1120;
 }
 QWidget {
     font-family: 'Segoe UI', Arial, sans-serif;
     color: #F8FAFC;
 }
 #TitleBar {
-    background-color: #1E293B;
+    background-color: #111827;
+    border-bottom: 1px solid #1E293B;
 }
 #TitleBar QLabel {
     color: #38BDF8;
-    font-weight: bold;
+    font-weight: 800;
     font-size: 14px;
+    letter-spacing: 1px;
 }
 #TitleBar QPushButton {
     background-color: transparent;
     border: none;
     font-size: 16px;
     color: #94A3B8;
+    padding: 5px;
+    border-radius: 4px;
 }
 #TitleBar QPushButton:hover {
-    background-color: #334155;
+    background-color: #1E293B;
     color: #F8FAFC;
 }
 #TitleBar #CloseBtn:hover {
@@ -44,102 +81,120 @@ QWidget {
     color: #FFFFFF;
 }
 #Sidebar {
-    background-color: #1E293B;
-    border-right: 1px solid #334155;
+    background-color: #111827;
+    border-right: 1px solid #1E293B;
 }
 #Sidebar QPushButton {
     background-color: transparent;
     text-align: left;
-    padding: 12px 15px;
+    padding: 12px 18px;
     border: none;
-    border-radius: 6px;
-    margin: 4px 10px;
-    font-size: 13px;
+    border-radius: 8px;
+    margin: 4px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #CBD5E1;
 }
 #Sidebar QPushButton:hover {
-    background-color: #334155;
+    background-color: #1E293B;
+    color: #F8FAFC;
 }
 #ContentArea {
-    background-color: #0F172A;
+    background-color: #0B1120;
 }
 QLineEdit {
     background-color: #1E293B;
     border: 1px solid #334155;
-    border-radius: 6px;
-    padding: 10px;
+    border-radius: 8px;
+    padding: 12px 15px;
     color: #F8FAFC;
-    font-size: 13px;
+    font-size: 14px;
 }
 QLineEdit:focus {
     border: 1px solid #38BDF8;
+    background-color: #0F172A;
 }
 QPushButton.primary {
-    background-color: #38BDF8;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #38BDF8, stop:1 #0EA5E9);
     color: #0F172A;
     font-weight: bold;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 12px;
-    font-size: 14px;
+    font-size: 15px;
 }
 QPushButton.primary:hover {
-    background-color: #7DD3FC;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7DD3FC, stop:1 #38BDF8);
 }
 QPushButton.secondary {
-    background-color: #334155;
-    color: #F8FAFC;
-    border: none;
-    border-radius: 6px;
+    background-color: #1E293B;
+    color: #E2E8F0;
+    border: 1px solid #334155;
+    border-radius: 8px;
     padding: 12px;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 500;
 }
 QPushButton.secondary:hover {
-    background-color: #475569;
+    background-color: #334155;
+    color: #F8FAFC;
+    border: 1px solid #475569;
 }
 QListWidget {
-    background-color: #0F172A;
+    background-color: transparent;
     border: none;
     outline: none;
 }
 QListWidget::item {
     background-color: #1E293B;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 18px;
+    color: #F8FAFC;
+    font-size: 15px;
+    font-weight: 500;
+    border: 1px solid #1E293B;
+}
+QListWidget::item:hover {
+    background-color: #27344D;
 }
 QListWidget::item:selected {
-    background-color: #334155;
+    background-color: #1E293B;
     border: 1px solid #38BDF8;
+    color: #38BDF8;
 }
 #AppList {
-    background-color: #1E293B;
+    background-color: transparent;
 }
 #AppList::item {
     background-color: transparent;
-    color: #F8FAFC;
+    color: #CBD5E1;
     padding: 12px 15px;
-    border-radius: 6px;
+    border-radius: 8px;
     margin: 4px 10px;
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 500;
 }
 #AppList::item:hover {
-    background-color: #334155;
+    background-color: #1E293B;
+    color: #F8FAFC;
 }
 #AppList::item:selected {
-    background-color: #38BDF8;
-    color: #0F172A;
-    font-weight: bold;
+    background-color: #1E293B;
+    border-left: 4px solid #38BDF8;
+    color: #38BDF8;
+    border-radius: 4px;
 }
 QScrollBar:vertical {
     border: none;
-    background: #0F172A;
-    width: 10px;
-    margin: 0px 0px 0px 0px;
+    background: transparent;
+    width: 8px;
+    margin: 0px;
 }
 QScrollBar::handle:vertical {
     background: #334155;
-    min-height: 20px;
-    border-radius: 5px;
+    min-height: 30px;
+    border-radius: 4px;
 }
 QScrollBar::handle:vertical:hover {
     background: #475569;
@@ -150,30 +205,101 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 QDialog {
     background-color: #0F172A;
+    border: 1px solid #334155;
+    border-radius: 12px;
 }
 QMenu {
     background-color: #1E293B;
-    color: white;
+    color: #F8FAFC;
     border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 5px;
 }
 QMenu::item {
-    padding: 6px 20px;
+    padding: 8px 25px;
+    border-radius: 4px;
 }
 QMenu::item:selected {
     background-color: #38BDF8;
     color: #0F172A;
+    font-weight: bold;
+}
+QCheckBox {
+    font-size: 14px;
+    color: #CBD5E1;
+}
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    background-color: #1E293B;
+}
+QCheckBox::indicator:checked {
+    background-color: #38BDF8;
+    border: 1px solid #38BDF8;
 }
 """
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setFixedSize(350, 200)
+        self.setStyleSheet(STYLE_SHEET)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        
+        layout = QVBoxLayout(self)
+        
+        title = QLabel("Settings")
+        title.setStyleSheet("font-size: 20px; color: #38BDF8; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title)
+        
+        self.settings = load_settings()
+        
+        self.startup_check = QCheckBox("Start with Windows")
+        self.startup_check.setChecked(self.settings.get("startup", False))
+        layout.addWidget(self.startup_check)
+        
+        self.tray_check = QCheckBox("Minimize to system tray")
+        self.tray_check.setChecked(self.settings.get("tray", True))
+        layout.addWidget(self.tray_check)
+        
+        layout.addStretch()
+        
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.setProperty("class", "primary")
+        save_btn.clicked.connect(self.save_and_close)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setProperty("class", "secondary")
+        cancel_btn.clicked.connect(self.reject)
+        
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def save_and_close(self):
+        self.settings["startup"] = self.startup_check.isChecked()
+        self.settings["tray"] = self.tray_check.isChecked()
+        save_settings(self.settings)
+        set_startup(self.settings["startup"])
+        self.accept()
 
 class TitleBar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("TitleBar")
-        self.setFixedHeight(40)
+        self.setFixedHeight(45)
         self.parent_window = parent
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(15, 0, 10, 0)
+        
+        icon_label = QLabel("🛡️")
+        icon_label.setStyleSheet("color: #38BDF8; font-size: 16px; margin-right: 5px;")
+        layout.addWidget(icon_label)
         
         title_label = QLabel("OmniVault Secure")
         layout.addWidget(title_label)
@@ -182,12 +308,12 @@ class TitleBar(QFrame):
         self.min_btn = QPushButton("—")
         self.min_btn.setObjectName("MinBtn")
         self.min_btn.setFixedSize(40, 30)
-        self.min_btn.clicked.connect(self.parent_window.showMinimized)
+        self.min_btn.clicked.connect(self.parent_window.minimize_action)
         
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("CloseBtn")
         self.close_btn.setFixedSize(40, 30)
-        self.close_btn.clicked.connect(self.parent_window.close)
+        self.close_btn.clicked.connect(self.parent_window.close_action)
         
         layout.addWidget(self.min_btn)
         layout.addWidget(self.close_btn)
@@ -215,26 +341,43 @@ class LoginScreen(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
+        icon = QLabel("🔐")
+        icon.setStyleSheet("font-size: 50px; margin-bottom: 10px;")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+        
         self.title = QLabel("Vault Login")
-        self.title.setStyleSheet("font-size: 28px; color: #38BDF8; font-weight: bold; margin-bottom: 30px;")
+        self.title.setStyleSheet("font-size: 32px; color: #38BDF8; font-weight: 800; margin-bottom: 25px; letter-spacing: 1px;")
         self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.title)
         
         self.pwd_input = QLineEdit()
         self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.pwd_input.setPlaceholderText("Master Password")
-        self.pwd_input.setFixedWidth(300)
+        self.pwd_input.setFixedWidth(320)
+        self.pwd_input.setFixedHeight(50)
         self.pwd_input.returnPressed.connect(self.attempt_login)
         layout.addWidget(self.pwd_input, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        self.login_btn = QPushButton("Unlock")
+        layout.addSpacing(15)
+        
+        self.login_btn = QPushButton("Unlock Vault")
         self.login_btn.setProperty("class", "primary")
-        self.login_btn.setFixedWidth(300)
+        self.login_btn.setFixedWidth(320)
+        self.login_btn.setFixedHeight(50)
         self.login_btn.clicked.connect(self.attempt_login)
+        
+        # Add shadow to login button
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor("#0EA5E9"))
+        shadow.setOffset(0, 4)
+        self.login_btn.setGraphicsEffect(shadow)
+        
         layout.addWidget(self.login_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         
         self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: #EF4444; margin-top: 15px; font-size: 13px;")
+        self.error_label.setStyleSheet("color: #EF4444; margin-top: 20px; font-size: 14px; font-weight: bold;")
         self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.error_label)
         
@@ -247,11 +390,11 @@ class LoginScreen(QWidget):
         if os.path.exists("my_vault.bin"):
             self.title.setText("Vault Login")
             self.pwd_input.setPlaceholderText("Master Password")
-            self.login_btn.setText("Unlock")
+            self.login_btn.setText("Unlock Vault")
         else:
             self.title.setText("Create New Vault")
             self.pwd_input.setPlaceholderText("Set Master Password")
-            self.login_btn.setText("Create Vault")
+            self.login_btn.setText("Initialize Vault")
 
     def attempt_login(self):
         if time.time() < self.lockout_until:
@@ -296,7 +439,7 @@ class AccountDialog(QDialog):
     def __init__(self, parent=None, app_name="", acc_name="", username="", password="", riot_logic=False):
         super().__init__(parent)
         self.setWindowTitle("Account")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(420, 340)
         self.setStyleSheet(STYLE_SHEET)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         
@@ -306,7 +449,7 @@ class AccountDialog(QDialog):
         layout = QVBoxLayout(self)
         
         title = QLabel("Add / Edit Account")
-        title.setStyleSheet("font-size: 18px; color: #38BDF8; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; color: #38BDF8; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(title)
         
         form = QFormLayout()
@@ -325,6 +468,8 @@ class AccountDialog(QDialog):
         form.addRow("", self.riot_check)
         
         layout.addLayout(form)
+        
+        layout.addStretch()
         
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -355,6 +500,7 @@ class MainScreen(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.vault = None
+        self.parent_window = parent
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -362,7 +508,7 @@ class MainScreen(QWidget):
         
         self.sidebar = QFrame()
         self.sidebar.setObjectName("Sidebar")
-        self.sidebar.setFixedWidth(220)
+        self.sidebar.setFixedWidth(240)
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(0, 20, 0, 20)
         sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -376,12 +522,19 @@ class MainScreen(QWidget):
         self.app_list.customContextMenuRequested.connect(self.show_app_context_menu)
         sidebar_layout.addWidget(self.app_list)
         
-        self.add_app_btn = QPushButton("+ New Account")
+        sidebar_layout.addSpacing(10)
+        
+        self.add_app_btn = QPushButton("➕ New Account")
         self.add_app_btn.setProperty("class", "secondary")
         self.add_app_btn.clicked.connect(self.add_account)
         sidebar_layout.addWidget(self.add_app_btn)
         
-        self.lock_btn = QPushButton("Lock Vault")
+        self.settings_btn = QPushButton("⚙️ Settings")
+        self.settings_btn.setProperty("class", "secondary")
+        self.settings_btn.clicked.connect(self.open_settings)
+        sidebar_layout.addWidget(self.settings_btn)
+        
+        self.lock_btn = QPushButton("🔒 Lock Vault")
         self.lock_btn.setProperty("class", "secondary")
         self.lock_btn.clicked.connect(self.logout_requested.emit)
         sidebar_layout.addWidget(self.lock_btn)
@@ -391,12 +544,14 @@ class MainScreen(QWidget):
         self.content_area = QFrame()
         self.content_area.setObjectName("ContentArea")
         content_layout = QVBoxLayout(self.content_area)
-        content_layout.setContentsMargins(25, 25, 25, 25)
+        content_layout.setContentsMargins(30, 30, 30, 30)
         
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search credentials...")
+        self.search_input.setPlaceholderText("🔍 Search credentials...")
         self.search_input.textChanged.connect(self.filter_credentials)
         content_layout.addWidget(self.search_input)
+        
+        content_layout.addSpacing(15)
         
         self.cred_list = QListWidget()
         self.cred_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -410,6 +565,10 @@ class MainScreen(QWidget):
         
         self.current_app = None
 
+    def open_settings(self):
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
     def set_vault(self, vault):
         self.vault = vault
         self.refresh_sidebar()
@@ -421,7 +580,7 @@ class MainScreen(QWidget):
             
         apps = self.vault.get_apps()
         for app in apps:
-            item = QListWidgetItem(app.upper())
+            item = QListWidgetItem(f"📁 {app.upper()}")
             item.setData(Qt.ItemDataRole.UserRole, app)
             self.app_list.addItem(item)
             
@@ -450,7 +609,7 @@ class MainScreen(QWidget):
             
         accounts = self.vault.get_accounts(self.current_app)
         for acc in accounts:
-            item = QListWidgetItem(f"{acc}")
+            item = QListWidgetItem(f"🔑 {acc}")
             item.setData(Qt.ItemDataRole.UserRole, acc)
             self.cred_list.addItem(item)
             
@@ -511,13 +670,11 @@ class MainScreen(QWidget):
                     return
                 self.vault.data[new_name] = self.vault.data.pop(app_name)
                 
-                # Update ordering
                 apps = self.vault.get_apps()
                 if app_name in apps:
                     apps[apps.index(app_name)] = new_name
                     self.vault.set_app_order(apps)
                 
-                # Update acc ordering if any
                 if "__metadata__" in self.vault.data and "acc_order" in self.vault.data["__metadata__"]:
                     if app_name in self.vault.data["__metadata__"]["acc_order"]:
                         self.vault.data["__metadata__"]["acc_order"][new_name] = self.vault.data["__metadata__"]["acc_order"].pop(app_name)
@@ -579,10 +736,11 @@ class MainScreen(QWidget):
         
         QApplication.clipboard().setText(data['password'])
         
+        # Hide the window immediately
+        self.parent_window.hide()
+        
         if data.get('riot_logic', False):
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
-        else:
-            QMessageBox.information(self, "Copied", f"Password for {acc_name} copied to clipboard!")
 
     def _execute_login_thread(self, data):
         username = data['username']
@@ -609,11 +767,19 @@ class OmniVaultApp(QMainWindow):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.resize(850, 550)
+        self.resize(900, 600)
+        
+        # Apply drop shadow to the main window
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setXOffset(0)
+        shadow.setYOffset(0)
+        shadow.setColor(QColor(0, 0, 0, 180))
         
         self.central_widget = QWidget()
         self.central_widget.setObjectName("MainWidget")
-        self.central_widget.setStyleSheet(STYLE_SHEET + "\n#MainWidget { border-radius: 8px; background-color: #0F172A; border: 1px solid #334155; }")
+        self.central_widget.setStyleSheet(STYLE_SHEET + "\n#MainWidget { border-radius: 12px; background-color: #0B1120; border: 1px solid #1E293B; }")
+        self.central_widget.setGraphicsEffect(shadow)
         self.setCentralWidget(self.central_widget)
         
         main_layout = QVBoxLayout(self.central_widget)
@@ -627,7 +793,7 @@ class OmniVaultApp(QMainWindow):
         main_layout.addWidget(self.stacked_widget)
         
         self.login_screen = LoginScreen()
-        self.main_screen = MainScreen()
+        self.main_screen = MainScreen(parent=self)
         
         self.stacked_widget.addWidget(self.login_screen)
         self.stacked_widget.addWidget(self.main_screen)
@@ -643,8 +809,9 @@ class OmniVaultApp(QMainWindow):
         self.mouse_listener.start()
         self.kb_listener.start()
         
+        # Base keybind to ctrl+p
         self.hotkey_listener = keyboard.GlobalHotKeys({
-            '<ctrl>+<alt>+v': self.on_global_hotkey
+            '<ctrl>+p': self.on_global_hotkey
         })
         self.hotkey_listener.start()
         
@@ -653,6 +820,51 @@ class OmniVaultApp(QMainWindow):
         self.check_idle_timer = QTimer(self)
         self.check_idle_timer.timeout.connect(self.check_idle)
         self.check_idle_timer.start(1000)
+
+        # Tray Icon setup
+        self.tray_icon = QSystemTrayIcon(self)
+        if os.path.exists("vault_icon.ico"):
+            self.tray_icon.setIcon(QIcon("vault_icon.ico"))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
+            
+        tray_menu = QMenu()
+        show_action = QAction("Show OmniVault", self)
+        show_action.triggered.connect(self.show_app)
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(QApplication.instance().quit)
+        
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(quit_action)
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.tray_icon_activated)
+        
+        settings = load_settings()
+        if settings.get("tray", True):
+            self.tray_icon.show()
+
+    def tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show_app()
+
+    def show_app(self):
+        self.showNormal()
+        self.activateWindow()
+
+    def minimize_action(self):
+        settings = load_settings()
+        if settings.get("tray", True):
+            self.hide()
+        else:
+            self.showMinimized()
+
+    def close_action(self):
+        settings = load_settings()
+        if settings.get("tray", True):
+            self.hide()
+            self.tray_icon.showMessage("OmniVault", "Vault is still running in the background.", QSystemTrayIcon.MessageIcon.Information, 2000)
+        else:
+            QApplication.instance().quit()
 
     def _on_activity(self, *args, **kwargs):
         self.last_activity = time.time()
@@ -684,8 +896,16 @@ class OmniVaultApp(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    
+    settings = load_settings()
     window = OmniVaultApp()
-    window.show()
+    
+    if settings.get("startup", False) and "--startup" in sys.argv:
+        pass # Start hidden in tray
+    else:
+        window.show()
+        
     sys.exit(app.exec())
 
 if __name__ == "__main__":
