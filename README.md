@@ -1,6 +1,6 @@
 # OmniVault
 
-A modern, frameless desktop password manager featuring military-grade encryption, hotkey-driven auto-typing, and a streamlined slate/blue UI. Designed as an ultra-secure, local-only alternative to cloud-based password managers.
+A modern, frameless desktop password manager featuring AES-128 Fernet encryption with PBKDF2HMAC key derivation, hotkey-driven auto-typing, and a streamlined slate/blue UI. Designed as an ultra-secure, local-only alternative to cloud-based password managers.
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 ![Tkinter](https://img.shields.io/badge/Tkinter-000000?style=flat)
@@ -15,7 +15,7 @@ OmniVault is a secure, offline-first password manager built with Python and Tkin
 
 **Key features:**
 
-- **Military-Grade Encryption** - Stores credentials in an encrypted binary vault (`my_vault.bin`) using Fernet (AES-128 in CBC mode) with a PBKDF2HMAC (SHA-256) derived key.
+- **AES-128 Fernet Encryption** - Stores credentials in an encrypted binary vault (`my_vault.bin`) using Fernet (AES-128 in CBC mode) with a PBKDF2HMAC (SHA-256) derived key.
 - **Local-Only Storage** - Zero cloud connectivity. Your data never leaves your machine.
 - **Frameless Modern UI** - A sleek, custom Tkinter interface with a slate and blue color scheme, custom toggle switches, memory-efficient color-fade hover animations, and a draggable reordering system.
 - **Standalone Executable** - OmniVault can be compiled into a single `.exe` file that natively bundles its custom icon and runs completely standalone.
