@@ -1,696 +1,458 @@
-import tkinter as tk
-from tkinter import simpledialog, messagebox
-import pyautogui
-import time
-import json
-import base64
 import sys
-import winreg
+import time
+import math
 import os
-import ctypes
-from ctypes import wintypes
 import threading
-from PIL import Image, ImageDraw
-import pystray
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from vault import IncrementalVault
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                             QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                             QStackedWidget, QFrame, QMessageBox, QDialog, QFormLayout, QCheckBox)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from pynput import keyboard, mouse
+import pyautogui
 
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+STYLE_SHEET = """
+QMainWindow {
+    background-color: #0F172A;
+}
+QWidget {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #F8FAFC;
+}
+#TitleBar {
+    background-color: #1E293B;
+}
+#TitleBar QLabel {
+    color: #38BDF8;
+    font-weight: bold;
+    font-size: 14px;
+}
+#TitleBar QPushButton {
+    background-color: transparent;
+    border: none;
+    font-size: 16px;
+    color: #94A3B8;
+}
+#TitleBar QPushButton:hover {
+    background-color: #334155;
+    color: #F8FAFC;
+}
+#TitleBar #CloseBtn:hover {
+    background-color: #EF4444;
+    color: #FFFFFF;
+}
+#Sidebar {
+    background-color: #1E293B;
+    border-right: 1px solid #334155;
+}
+#Sidebar QPushButton {
+    background-color: transparent;
+    text-align: left;
+    padding: 12px 15px;
+    border: none;
+    border-radius: 6px;
+    margin: 4px 10px;
+    font-size: 13px;
+}
+#Sidebar QPushButton:hover {
+    background-color: #334155;
+}
+#Sidebar QPushButton:checked {
+    background-color: #38BDF8;
+    color: #0F172A;
+    font-weight: bold;
+}
+#ContentArea {
+    background-color: #0F172A;
+}
+QLineEdit {
+    background-color: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 10px;
+    color: #F8FAFC;
+    font-size: 13px;
+}
+QLineEdit:focus {
+    border: 1px solid #38BDF8;
+}
+QPushButton.primary {
+    background-color: #38BDF8;
+    color: #0F172A;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+}
+QPushButton.primary:hover {
+    background-color: #7DD3FC;
+}
+QPushButton.secondary {
+    background-color: #334155;
+    color: #F8FAFC;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 13px;
+}
+QPushButton.secondary:hover {
+    background-color: #475569;
+}
+QListWidget {
+    background-color: #0F172A;
+    border: none;
+    outline: none;
+}
+QListWidget::item {
+    background-color: #1E293B;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 15px;
+}
+QListWidget::item:selected {
+    background-color: #334155;
+    border: 1px solid #38BDF8;
+}
+QScrollBar:vertical {
+    border: none;
+    background: #0F172A;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+    background: #334155;
+    min-height: 20px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #475569;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+QDialog {
+    background-color: #0F172A;
+}
+"""
 
-def hex_to_rgb(hex_color):
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-def rgb_to_hex(rgb):
-    return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
-
-class AnimatedHover:
-    def __init__(self, widget, normal_bg, hover_bg, normal_fg=None, hover_fg=None, steps=8, delay=15):
-        self.widget = widget
-        self.normal_bg = normal_bg
-        self.hover_bg = hover_bg
-        self.normal_fg = normal_fg
-        self.hover_fg = hover_fg
-        self.steps = steps
-        self.delay = delay
-        self.current_step = 0
-        self.animating_forward = False
-        self.job = None
-        
-        self.widget.bind("<Enter>", self.on_enter, add="+")
-        self.widget.bind("<Leave>", self.on_leave, add="+")
-
-    def on_enter(self, event):
-        self.animating_forward = True
-        self.animate()
-
-    def on_leave(self, event):
-        self.animating_forward = False
-        self.animate()
-
-    def animate(self):
-        if self.job:
-            try:
-                self.widget.after_cancel(self.job)
-            except:
-                pass
-        
-        if self.animating_forward and self.current_step < self.steps:
-            self.current_step += 1
-        elif not self.animating_forward and self.current_step > 0:
-            self.current_step -= 1
-        else:
-            return
-
-        c1 = hex_to_rgb(self.normal_bg)
-        c2 = hex_to_rgb(self.hover_bg)
-        r = c1[0] + (c2[0] - c1[0]) * (self.current_step / self.steps)
-        g = c1[1] + (c2[1] - c1[1]) * (self.current_step / self.steps)
-        b = c1[2] + (c2[2] - c1[2]) * (self.current_step / self.steps)
-        
-        kwargs = {'bg': rgb_to_hex((r, g, b))}
-        
-        if self.normal_fg and self.hover_fg:
-            f1 = hex_to_rgb(self.normal_fg)
-            f2 = hex_to_rgb(self.hover_fg)
-            fr = f1[0] + (f2[0] - f1[0]) * (self.current_step / self.steps)
-            fg = f1[1] + (f2[1] - f1[1]) * (self.current_step / self.steps)
-            fb = f1[2] + (f2[2] - f1[2]) * (self.current_step / self.steps)
-            kwargs['fg'] = rgb_to_hex((fr, fg, fb))
-            kwargs['activeforeground'] = kwargs['fg']
-
-        kwargs['activebackground'] = kwargs['bg']
-        
-        try:
-            self.widget.configure(**kwargs)
-            self.job = self.widget.after(self.delay, self.animate)
-        except tk.TclError:
-            pass
-
-
-class ToggleSwitch(tk.Canvas):
-    def __init__(self, parent, variable, command=None, bg="#111827", active_color="#3b82f6", *args, **kwargs):
-        super().__init__(parent, width=40, height=20, bg=bg, highlightthickness=0, cursor="hand2", *args, **kwargs)
-        self.variable = variable
-        self.command = command
-        self.active_color = active_color
-        self.bg_color = "#374151"
-        self.bind("<Button-1>", self.toggle)
-        self.draw()
-
-    def draw(self):
-        self.delete("all")
-        state = self.variable.get()
-        fill_color = self.active_color if state else self.bg_color
-        self.create_oval(0, 0, 20, 20, fill=fill_color, outline="")
-        self.create_oval(20, 0, 40, 20, fill=fill_color, outline="")
-        self.create_rectangle(10, 0, 30, 20, fill=fill_color, outline="")
-        knob_x = 30 if state else 10
-        self.create_oval(knob_x-8, 2, knob_x+8, 18, fill="white", outline="")
-
-    def toggle(self, event=None):
-        self.variable.set(not self.variable.get())
-        self.draw()
-        if self.command:
-            self.command()
-
-
-class ModernMenu(tk.Toplevel):
-    def __init__(self, parent, x, y, options):
+class TitleBar(QFrame):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.overrideredirect(True)
-        self.configure(bg="#374151", padx=1, pady=1) 
+        self.setObjectName("TitleBar")
+        self.setFixedHeight(40)
+        self.parent_window = parent
         
-        self.geometry(f"+{x}+{y}")
-        self.attributes('-topmost', True)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(15, 0, 10, 0)
         
-        container = tk.Frame(self, bg="#1f2937")
-        container.pack(fill='both', expand=True)
+        title_label = QLabel("OmniVault Secure")
+        layout.addWidget(title_label)
+        layout.addStretch()
+        
+        self.min_btn = QPushButton("—")
+        self.min_btn.setObjectName("MinBtn")
+        self.min_btn.setFixedSize(40, 30)
+        self.min_btn.clicked.connect(self.parent_window.showMinimized)
+        
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setObjectName("CloseBtn")
+        self.close_btn.setFixedSize(40, 30)
+        self.close_btn.clicked.connect(self.parent_window.close)
+        
+        layout.addWidget(self.min_btn)
+        layout.addWidget(self.close_btn)
+        
+        self.start_pos = None
 
-        for label, command in options:
-            btn = tk.Button(container, text=label, font=("Segoe UI", 10), 
-                            bg="#1f2937", fg="#f3f4f6", activebackground="#3b82f6", activeforeground="white",
-                            relief="flat", bd=0, anchor="w", padx=15, cursor="hand2",
-                            command=lambda c=command: self.execute(c))
-            btn.pack(fill='x', ipady=6)
-            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.start_pos = event.globalPosition().toPoint() - self.parent_window.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton and self.start_pos:
+            self.parent_window.move(event.globalPosition().toPoint() - self.start_pos)
+            event.accept()
+
+class LoginScreen(QWidget):
+    login_success = pyqtSignal(object)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.failed_attempts = 0
+        self.lockout_until = 0
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.title = QLabel("Vault Login")
+        self.title.setStyleSheet("font-size: 28px; color: #38BDF8; font-weight: bold; margin-bottom: 30px;")
+        self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.title)
+        
+        self.pwd_input = QLineEdit()
+        self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.pwd_input.setPlaceholderText("Master Password")
+        self.pwd_input.setFixedWidth(300)
+        self.pwd_input.returnPressed.connect(self.attempt_login)
+        layout.addWidget(self.pwd_input, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.login_btn = QPushButton("Unlock")
+        self.login_btn.setProperty("class", "primary")
+        self.login_btn.setFixedWidth(300)
+        self.login_btn.clicked.connect(self.attempt_login)
+        layout.addWidget(self.login_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #EF4444; margin-top: 15px; font-size: 13px;")
+        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.error_label)
+        
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_lockout)
+        self.timer.start(1000)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if os.path.exists("my_vault.bin"):
+            self.title.setText("Vault Login")
+            self.pwd_input.setPlaceholderText("Master Password")
+            self.login_btn.setText("Unlock")
+        else:
+            self.title.setText("Create New Vault")
+            self.pwd_input.setPlaceholderText("Set Master Password")
+            self.login_btn.setText("Create Vault")
+
+    def attempt_login(self):
+        if time.time() < self.lockout_until:
+            return
             
-        self.bind("<FocusOut>", lambda e: self.destroy())
-        self.focus_force()
+        pwd = self.pwd_input.text()
+        self.pwd_input.clear()
         
-    def execute(self, command):
-        command()
-        self.destroy()
-
-
-class SecureSwitcher:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("OmniVault")
-        self.root.geometry("360x600")
-        self.root.configure(bg="#111827")
-        self.root.overrideredirect(True) 
-        self.root.attributes('-topmost', True)
-        
-        icon_path = resource_path("vault_icon.ico")
-        if os.path.exists(icon_path):
-            self.root.iconbitmap(icon_path)
-        
-        self.vault = None
-        self.current_app = None
-        self.x = 0
-        self.y = 0
-
-        self.title_bar = tk.Frame(root, bg="#1f2937", height=35)
-        self.title_bar.pack(fill='x', side='top')
-        self.setup_title_bar()
-
-        self.content_frame = tk.Frame(root, bg="#111827")
-        self.content_frame.pack(fill='both', expand=True, padx=25, pady=20)
-
-        self.show_loading_view()
-
-        self.root.after(100, self.prompt_password)
-
-        self.startup_var = tk.BooleanVar(value=self.check_startup_status())
-        self.tray_var = tk.BooleanVar(value=self.load_settings().get("tray", False))
-
-        self.setup_hotkey()
-
-    def show_loading_view(self):
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-        tk.Label(self.content_frame, text="UNLOCKING VAULT...", font=("Segoe UI", 12, "bold"), 
-                 bg="#111827", fg="#3b82f6").pack(expand=True)
-
-    def set_appwindow(self):
-        try:
-            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
-            style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
-            style = style & ~0x00000080 | 0x00040000
-            ctypes.windll.user32.SetWindowLongW(hwnd, -20, style)
-            self.root.withdraw()
-            self.root.deiconify()
-        except:
-            pass
-
-    def prompt_password(self):
-        self.root.deiconify()
-        self.set_appwindow()
-        pwd = simpledialog.askstring("OmniVault Login", "Enter Vault Password:", show='*', parent=self.root)
         if not pwd:
-            self.root.destroy()
             return
+            
+        vault = IncrementalVault(pwd)
+        success = vault.load()
         
-        self.vault = IncrementalVault(pwd)
-        
-        def on_loaded(success):
-            if success:
-                self.root.after(0, self.show_apps_view)
+        if success:
+            self.failed_attempts = 0
+            self.error_label.setText("")
+            self.login_success.emit(vault)
+        else:
+            self.failed_attempts += 1
+            penalty = min(math.pow(2, self.failed_attempts), 300)
+            if self.failed_attempts > 2:
+                self.lockout_until = time.time() + penalty
+                self.update_lockout()
             else:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to unlock vault"))
-                self.root.after(0, self.root.destroy)
+                self.error_label.setText("Invalid password.")
 
-        threading.Thread(target=self.vault.load, args=(on_loaded,), daemon=True).start()
-
-    def setup_title_bar(self):
-        tk.Label(self.title_bar, text="  OMNIVAULT", bg="#1f2937", fg="#3b82f6", 
-                 font=("Segoe UI", 10, "bold")).pack(side='left', pady=8)
-        
-        close_btn = tk.Button(self.title_bar, text="✕", command=self.root.destroy, 
-                              bg="#1f2937", fg="white", bd=0, font=("Arial", 12),
-                              activebackground="#e11d48", activeforeground="white", cursor="hand2")
-        close_btn.pack(side='right', padx=10, pady=5)
-        AnimatedHover(close_btn, normal_bg="#1f2937", hover_bg="#e11d48")
-        
-        min_btn = tk.Button(self.title_bar, text="_", command=self.minimize_window,
-                            bg="#1f2937", fg="white", bd=0, font=("Arial", 12, "bold"),
-                            activebackground="#3b82f6", activeforeground="white", cursor="hand2")
-        min_btn.pack(side='right', padx=0, pady=5)
-        AnimatedHover(min_btn, normal_bg="#1f2937", hover_bg="#374151")
-
-        self.title_bar.bind("<ButtonPress-1>", self.start_move)
-        self.title_bar.bind("<B1-Motion>", self.do_move)
-
-    def start_move(self, event):
-        self.x = event.x
-        self.y = event.y
-
-    def do_move(self, event):
-        deltax = event.x - self.x
-        deltay = event.y - self.y
-        x = self.root.winfo_x() + deltax
-        y = self.root.winfo_y() + deltay
-        self.root.geometry(f"+{x}+{y}")
-
-    def minimize_window(self):
-        if self.tray_var.get():
-            self.root.withdraw()
-            self.run_tray_icon()
+    def update_lockout(self):
+        if time.time() < self.lockout_until:
+            remaining = int(self.lockout_until - time.time())
+            self.error_label.setText(f"Locked out. Try again in {remaining}s")
+            self.login_btn.setEnabled(False)
+            self.pwd_input.setEnabled(False)
         else:
-            self.root.overrideredirect(False)
-            self.root.iconify()
-            self.root.bind('<Map>', self.restore_window)
+            if self.lockout_until != 0:
+                self.error_label.setText("")
+                self.lockout_until = 0
+            self.login_btn.setEnabled(True)
+            self.pwd_input.setEnabled(True)
 
-    def restore_window(self, event):
-        if self.root.state() == 'normal':
-            self.root.overrideredirect(True)
-            self.root.unbind('<Map>')
-
-    def run_tray_icon(self):
-        image = self.create_tray_image()
-        menu = pystray.Menu(
-            pystray.MenuItem('Show', self.on_tray_show, default=True),
-            pystray.MenuItem('Quit', self.on_tray_quit)
-        )
-        self.icon = pystray.Icon("OmniVault", image, "OmniVault", menu)
-        threading.Thread(target=self.icon.run, daemon=True).start()
-
-    def setup_hotkey(self):
-        threading.Thread(target=self.hotkey_loop, daemon=True).start()
-
-    def hotkey_loop(self):
-        if not ctypes.windll.user32.RegisterHotKey(None, 1, 0x0002, 0x50):
-            print("Failed to register hotkey")
-            return
-
-        msg = wintypes.MSG()
-        while ctypes.windll.user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-            if msg.message == 0x0312: 
-                self.root.after(0, self.toggle_app_visibility)
-            ctypes.windll.user32.TranslateMessage(ctypes.byref(msg))
-            ctypes.windll.user32.DispatchMessageW(ctypes.byref(msg))
-
-    def toggle_app_visibility(self):
-        if self.root.state() == 'normal':
-            self.minimize_window()
-        else:
-            self.restore_app()
-
-    def restore_app(self):
-        if hasattr(self, 'icon') and self.icon:
-            self.icon.stop()
-        self.root.deiconify()
-        if not self.root.overrideredirect():
-            self.root.overrideredirect(True)
-            self.root.unbind('<Map>')
-        self.set_appwindow()
-        self.root.lift()
-        self.root.focus_force()
-
-    def create_tray_image(self):
-        if os.path.exists("vault_icon.ico"):
-            return Image.open("vault_icon.ico")
-            
-        image = Image.new('RGB', (64, 64), color="#111827")
-        d = ImageDraw.Draw(image)
-        d.rectangle([16, 16, 48, 48], fill="#3b82f6")
-        return image
-
-    def on_tray_show(self, icon, item):
-        self.restore_app()
-
-    def on_tray_quit(self, icon, item):
-        icon.stop()
-        self.root.after(0, self.root.destroy)
-
-    def load_settings(self):
-        if os.path.exists("settings.json"):
-            try:
-                with open("settings.json", "r") as f:
-                    return json.load(f)
-            except:
-                pass
-        return {"tray": False}
-
-    def save_settings(self):
-        with open("settings.json", "w") as f:
-            json.dump({"tray": self.tray_var.get()}, f)
-
-    def create_scrollable_frame(self, parent):
-        container = tk.Frame(parent, bg="#111827")
-        container.pack(fill='both', expand=True)
+class AccountDialog(QDialog):
+    def __init__(self, parent=None, app_name="", acc_name="", username="", password="", riot_logic=False):
+        super().__init__(parent)
+        self.setWindowTitle("Account")
+        self.setFixedSize(400, 300)
+        self.setStyleSheet(STYLE_SHEET)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         
-        canvas = tk.Canvas(container, bg="#111827", highlightthickness=0)
-        # Removed visual scrollbar to keep UI clean and modern
+        layout = QVBoxLayout(self)
         
-        scroll_frame = tk.Frame(canvas, bg="#111827")
+        title = QLabel("Add / Edit Account")
+        title.setStyleSheet("font-size: 18px; color: #38BDF8; font-weight: bold;")
+        layout.addWidget(title)
         
-        scroll_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        form = QFormLayout()
+        self.app_input = QLineEdit(app_name)
+        self.acc_input = QLineEdit(acc_name)
+        self.user_input = QLineEdit(username)
+        self.pwd_input = QLineEdit(password)
+        self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.riot_check = QCheckBox("Use Omni Login (Auto-type)")
+        self.riot_check.setChecked(riot_logic)
         
-        window_id = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        form.addRow("App Name:", self.app_input)
+        form.addRow("Account Name:", self.acc_input)
+        form.addRow("Username:", self.user_input)
+        form.addRow("Password:", self.pwd_input)
+        form.addRow("", self.riot_check)
         
-        def configure_canvas(event):
-            canvas.itemconfig(window_id, width=event.width)
+        layout.addLayout(form)
         
-        canvas.bind('<Configure>', configure_canvas)
-        canvas.pack(side="left", fill="both", expand=True)
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.setProperty("class", "primary")
+        save_btn.clicked.connect(self.accept)
         
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-            
-        self.root.bind_all("<MouseWheel>", _on_mousewheel)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setProperty("class", "secondary")
+        cancel_btn.clicked.connect(self.reject)
         
-        return scroll_frame
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(btn_layout)
 
-    def show_apps_view(self):
+    def get_data(self):
+        return {
+            "app_name": self.app_input.text(),
+            "acc_name": self.acc_input.text(),
+            "username": self.user_input.text(),
+            "password": self.pwd_input.text(),
+            "riot_logic": self.riot_check.isChecked()
+        }
+
+class MainScreen(QWidget):
+    logout_requested = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.vault = None
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        self.sidebar = QFrame()
+        self.sidebar.setObjectName("Sidebar")
+        self.sidebar.setFixedWidth(220)
+        sidebar_layout = QVBoxLayout(self.sidebar)
+        sidebar_layout.setContentsMargins(0, 20, 0, 20)
+        sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        self.app_list = QVBoxLayout()
+        self.app_list.setSpacing(0)
+        sidebar_layout.addLayout(self.app_list)
+        
+        sidebar_layout.addStretch()
+        
+        self.add_app_btn = QPushButton("+ New Account")
+        self.add_app_btn.setProperty("class", "secondary")
+        self.add_app_btn.clicked.connect(self.add_account)
+        sidebar_layout.addWidget(self.add_app_btn)
+        
+        self.lock_btn = QPushButton("Lock Vault")
+        self.lock_btn.setProperty("class", "secondary")
+        self.lock_btn.clicked.connect(self.logout_requested.emit)
+        sidebar_layout.addWidget(self.lock_btn)
+        
+        layout.addWidget(self.sidebar)
+        
+        self.content_area = QFrame()
+        self.content_area.setObjectName("ContentArea")
+        content_layout = QVBoxLayout(self.content_area)
+        content_layout.setContentsMargins(25, 25, 25, 25)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search credentials...")
+        self.search_input.textChanged.connect(self.filter_credentials)
+        content_layout.addWidget(self.search_input)
+        
+        self.cred_list = QListWidget()
+        self.cred_list.itemClicked.connect(self.on_item_clicked)
+        content_layout.addWidget(self.cred_list)
+        
+        layout.addWidget(self.content_area)
+        
         self.current_app = None
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
 
-        tk.Label(self.content_frame, text="APPLICATIONS", font=("Segoe UI", 14, "bold"), 
-                 bg="#111827", fg="#f3f4f6").pack(anchor='w', pady=(0, 15))
-
-        bottom_frame = tk.Frame(self.content_frame, bg="#111827")
-        bottom_frame.pack(side='bottom', fill='x', pady=10)
-
-        add_btn = tk.Button(bottom_frame, text="+ NEW APPLICATION", 
-                  font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
-                  activebackground="#3b82f6", activeforeground="white",
-                  relief="flat", bd=0, cursor="hand2",
-                  command=lambda: self.show_add_view(is_new_app=True))
-        add_btn.pack(fill='x', pady=(0, 15), ipady=5)
-        AnimatedHover(add_btn, normal_bg="#1f2937", hover_bg="#3b82f6", normal_fg="#f3f4f6", hover_fg="#ffffff")
-
-        row1 = tk.Frame(bottom_frame, bg="#111827")
-        row1.pack(fill='x', pady=5)
-        ToggleSwitch(row1, self.startup_var, command=self.toggle_startup).pack(side='left')
-        tk.Label(row1, text="Start with Windows", bg="#111827", fg="#9ca3af", font=("Segoe UI", 10)).pack(side='left', padx=10)
-
-        row2 = tk.Frame(bottom_frame, bg="#111827")
-        row2.pack(fill='x', pady=5)
-        ToggleSwitch(row2, self.tray_var, command=self.save_settings).pack(side='left')
-        tk.Label(row2, text="Minimize to Tray", bg="#111827", fg="#9ca3af", font=("Segoe UI", 10)).pack(side='left', padx=10)
-
-        scroll_frame = self.create_scrollable_frame(self.content_frame)
+    def set_vault(self, vault):
+        self.vault = vault
+        self.refresh_sidebar()
         
-        for app_name in self.vault.get_apps():
-            item_frame = tk.Frame(scroll_frame, bg="#1f2937")
-            item_frame.pack(fill='x', pady=4)
+    def refresh_sidebar(self):
+        for i in reversed(range(self.app_list.count())): 
+            widget = self.app_list.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+                
+        if not self.vault:
+            return
             
-            btn = tk.Button(item_frame, text=app_name.upper(), 
-                          font=("Segoe UI", 11, "bold"),
-                          bg="#1f2937", fg="#f3f4f6",
-                          activebackground="#374151", activeforeground="white",
-                          relief="flat", bd=0,
-                          cursor="hand2",
-                          command=lambda n=app_name: self.show_accounts_view(n))
-            btn.pack(fill='both', expand=True, ipady=6)
-            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
-            
-            ctrl_frame = tk.Frame(item_frame, bg="#1f2937")
-            up_btn = tk.Button(ctrl_frame, text="▲", font=("Arial", 7), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=app_name: self.move_app(n, -1))
-            dn_btn = tk.Button(ctrl_frame, text="▼", font=("Arial", 7), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=app_name: self.move_app(n, 1))
-            
-            up_btn.pack(side="left", fill="y", ipadx=6)
-            dn_btn.pack(side="left", fill="y", ipadx=6)
-            ctrl_frame.place(relx=1.0, rely=0.5, anchor="e", relheight=1.0)
-            
-            def make_hover(u, d, frm, b):
-                def on_enter(e):
-                    u.config(fg="#9ca3af", bg="#374151")
-                    d.config(fg="#9ca3af", bg="#374151")
-                    frm.config(bg="#374151")
-                def on_leave(e):
-                    try:
-                        x, y = b.winfo_pointerxy()
-                        rx, ry = b.winfo_rootx(), b.winfo_rooty()
-                        rw, rh = b.winfo_width(), b.winfo_height()
-                        if rx <= x <= rx + rw and ry <= y <= ry + rh:
-                            return
-                    except:
-                        pass
-                    u.config(fg="#1f2937", bg="#1f2937")
-                    d.config(fg="#1f2937", bg="#1f2937")
-                    frm.config(bg="#1f2937")
-                return on_enter, on_leave
-            
-            on_enter, on_leave = make_hover(up_btn, dn_btn, ctrl_frame, btn)
-            
-            btn.bind("<Enter>", on_enter, add="+")
-            btn.bind("<Leave>", on_leave, add="+")
-            up_btn.bind("<Enter>", on_enter, add="+")
-            up_btn.bind("<Leave>", on_leave, add="+")
-            dn_btn.bind("<Enter>", on_enter, add="+")
-            dn_btn.bind("<Leave>", on_leave, add="+")
-            
-            btn.bind("<Button-3>", lambda event, n=app_name: self.show_app_context_menu(event, n))
-
-    def show_accounts_view(self, app_name):
-        self.current_app = app_name
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-
-        header = tk.Frame(self.content_frame, bg="#111827")
-        header.pack(fill='x', pady=(0, 15), side='top')
-        
-        back_btn = tk.Button(header, text="<", font=("Segoe UI", 14, "bold"), 
-                  bg="#111827", fg="#6b7280", bd=0, activebackground="#111827", activeforeground="#f3f4f6",
-                  cursor="hand2", command=self.show_apps_view)
-        back_btn.pack(side='left')
-        AnimatedHover(back_btn, normal_bg="#111827", hover_bg="#111827", normal_fg="#6b7280", hover_fg="#f3f4f6")
-                  
-        tk.Label(header, text=app_name.upper(), font=("Segoe UI", 14, "bold"), 
-                 bg="#111827", fg="#f3f4f6").pack(side='left', padx=10)
-
-        add_btn = tk.Button(self.content_frame, text="+ ADD ACCOUNT", 
-                  font=("Segoe UI", 10, "bold"), bg="#1f2937", fg="#f3f4f6",
-                  activebackground="#3b82f6", activeforeground="white",
-                  relief="flat", bd=0, cursor="hand2",
-                  command=lambda: self.show_add_view(prefill_app=app_name))
-        add_btn.pack(side='bottom', fill='x', pady=20, ipady=5)
-        AnimatedHover(add_btn, normal_bg="#1f2937", hover_bg="#3b82f6", normal_fg="#f3f4f6", hover_fg="#ffffff")
-
-        scroll_frame = self.create_scrollable_frame(self.content_frame)
-
-        accounts = self.vault.get_accounts(app_name)
-        for acc_name in accounts:
-            item_frame = tk.Frame(scroll_frame, bg="#1f2937")
-            item_frame.pack(fill='x', pady=4)
-            
-            btn = tk.Button(item_frame, text=acc_name.upper(), 
-                          font=("Segoe UI", 11, "bold"),
-                          bg="#1f2937", fg="#f3f4f6",
-                          activebackground="#374151", activeforeground="white",
-                          relief="flat", bd=0,
-                          cursor="hand2",
-                          command=lambda n=acc_name: self.execute_login(app_name, n))
-            btn.pack(fill='both', expand=True, ipady=6)
-            AnimatedHover(btn, normal_bg="#1f2937", hover_bg="#374151")
-            
-            ctrl_frame = tk.Frame(item_frame, bg="#1f2937")
-            up_btn = tk.Button(ctrl_frame, text="▲", font=("Arial", 7), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=acc_name: self.move_account(app_name, n, -1))
-            dn_btn = tk.Button(ctrl_frame, text="▼", font=("Arial", 7), bg="#1f2937", fg="#1f2937", activebackground="#374151", activeforeground="white", relief="flat", bd=0, cursor="hand2", command=lambda n=acc_name: self.move_account(app_name, n, 1))
-            
-            up_btn.pack(side="left", fill="y", ipadx=6)
-            dn_btn.pack(side="left", fill="y", ipadx=6)
-            ctrl_frame.place(relx=1.0, rely=0.5, anchor="e", relheight=1.0)
-            
-            def make_hover(u, d, frm, parent_frame):
-                def on_enter(e):
-                    u.config(fg="#9ca3af", bg="#374151")
-                    d.config(fg="#9ca3af", bg="#374151")
-                    frm.config(bg="#374151")
-                def on_leave(e):
-                    try:
-                        x, y = parent_frame.winfo_pointerxy()
-                        widget = parent_frame.winfo_containing(x, y)
-                        widget_path = str(widget)
-                        parent_path = str(parent_frame)
-                        if widget_path == parent_path or widget_path.startswith(parent_path + "."):
-                            return
-                    except:
-                        pass
-                    u.config(fg="#1f2937", bg="#1f2937")
-                    d.config(fg="#1f2937", bg="#1f2937")
-                    frm.config(bg="#1f2937")
-                return on_enter, on_leave
-            
-            on_enter, on_leave = make_hover(up_btn, dn_btn, ctrl_frame, item_frame)
-            
-            btn.bind("<Enter>", on_enter, add="+")
-            btn.bind("<Leave>", on_leave, add="+")
-            up_btn.bind("<Enter>", on_enter, add="+")
-            up_btn.bind("<Leave>", on_leave, add="+")
-            dn_btn.bind("<Enter>", on_enter, add="+")
-            dn_btn.bind("<Leave>", on_leave, add="+")
-            
-            btn.bind("<Button-3>", lambda event, n=acc_name: self.show_account_context_menu(event, app_name, n))
-
-    def show_add_view(self, edit_app=None, edit_name=None, prefill_app=None, is_new_app=False):
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-
-        title_text = "EDIT ACCOUNT" if edit_name else ("NEW APPLICATION" if is_new_app else "NEW ACCOUNT")
-        tk.Label(self.content_frame, text=title_text, font=("Segoe UI", 14, "bold"), 
-                 bg="#111827", fg="#f3f4f6").pack(anchor='w', pady=(0, 20))
-
-        lbl_style = {"bg": "#111827", "fg": "#9ca3af", "font": ("Segoe UI", 10)}
-        entry_style = {"bg": "#1f2937", "fg": "white", "insertbackground": "white", "relief": "flat", "font": ("Segoe UI", 10)}
-
-        tk.Label(self.content_frame, text="Application", **lbl_style).pack(anchor='w', pady=(5, 2))
-        app_entry = tk.Entry(self.content_frame, **entry_style)
-        app_entry.pack(fill='x', ipady=6, pady=(0, 10))
-        if prefill_app: app_entry.insert(0, prefill_app)
-        if edit_app: app_entry.insert(0, edit_app)
-
-        tk.Label(self.content_frame, text="Account Name", **lbl_style).pack(anchor='w', pady=(5, 2))
-        name_entry = tk.Entry(self.content_frame, **entry_style)
-        name_entry.pack(fill='x', ipady=6, pady=(0, 10))
-
-        tk.Label(self.content_frame, text="Username", **lbl_style).pack(anchor='w', pady=(5, 2))
-        user_entry = tk.Entry(self.content_frame, **entry_style)
-        user_entry.pack(fill='x', ipady=6, pady=(0, 10))
-
-        pass_frame = tk.Frame(self.content_frame, bg="#111827")
-        pass_frame.pack(fill='x', pady=(5, 2))
-        tk.Label(pass_frame, text="Password", **lbl_style).pack(side='left')
-        
-        def toggle_pass_view():
-            if pass_entry.cget('show') == '*':
-                pass_entry.config(show='')
-                show_btn.config(text="Hide", fg="#3b82f6")
-            else:
-                pass_entry.config(show='*')
-                show_btn.config(text="Show", fg="#6b7280")
-
-        show_btn = tk.Button(pass_frame, text="Show", command=toggle_pass_view,
-                             bg="#111827", fg="#6b7280", bd=0, font=("Segoe UI", 9), cursor="hand2", activebackground="#111827", activeforeground="#f3f4f6")
-        show_btn.pack(side='right')
-
-        pass_entry = tk.Entry(self.content_frame, show="*", **entry_style)
-        pass_entry.pack(fill='x', ipady=6, pady=(0, 10))
-
-        riot_var = tk.BooleanVar(value=False)
-        riot_frame = tk.Frame(self.content_frame, bg="#111827")
-        riot_frame.pack(fill='x', pady=10)
-        ToggleSwitch(riot_frame, riot_var).pack(side='left')
-        tk.Label(riot_frame, text="Use Omni Login (Click & Type)", **lbl_style).pack(side='left', padx=10)
-
-        if edit_name and edit_app:
-            data = self.vault.get_entry(edit_app, edit_name)
-            name_entry.insert(0, edit_name)
-            user_entry.insert(0, data['username'])
-            pass_entry.insert(0, data['password'])
-            riot_var.set(data.get('riot_logic', False))
-
-        def save():
-            app = app_entry.get().strip()
-            name = name_entry.get().strip()
-            user = user_entry.get().strip()
-            pwd = pass_entry.get().strip()
-            
-            if not app or not name: 
-                messagebox.showwarning("Error", "App and Account Name required.")
-                return
-
-            if edit_name and edit_app and (edit_name != name or edit_app != app):
-                self.vault.delete_entry(edit_app, edit_name)
-
-            self.vault.set_entry(app, name, {
-                "username": user,
-                "password": pwd,
-                "riot_logic": riot_var.get()
-            })
-            self.vault.save()
-            self.show_accounts_view(app)
-
-        def cancel():
-            if self.current_app:
-                self.show_accounts_view(self.current_app)
-            else:
-                self.show_apps_view()
-
-        btn_frame = tk.Frame(self.content_frame, bg="#111827")
-        btn_frame.pack(fill='x', pady=10)
-
-        save_btn = tk.Button(btn_frame, text="SAVE", command=save, bg="#3b82f6", fg="white",
-                  font=("Segoe UI", 10, "bold"), relief="flat", width=12)
-        save_btn.pack(side='left', ipady=3)
-        AnimatedHover(save_btn, normal_bg="#3b82f6", hover_bg="#2563eb")
-        
-        cancel_btn = tk.Button(btn_frame, text="CANCEL", command=cancel, bg="#1f2937", fg="#f3f4f6",
-                  font=("Segoe UI", 10, "bold"), relief="flat", width=12)
-        cancel_btn.pack(side='right', ipady=3)
-        AnimatedHover(cancel_btn, normal_bg="#1f2937", hover_bg="#374151")
-
-    def show_app_context_menu(self, event, app_name):
-        options = [
-            ("Move Up", lambda: self.move_app(app_name, -1)),
-            ("Move Down", lambda: self.move_app(app_name, 1)),
-            (f"Delete {app_name}", lambda: self.delete_app(app_name))
-        ]
-        ModernMenu(self.root, event.x_root, event.y_root, options)
-
-    def move_app(self, app_name, direction):
         apps = self.vault.get_apps()
-        idx = apps.index(app_name)
-        new_idx = idx + direction
-        if 0 <= new_idx < len(apps):
-            apps.insert(new_idx, apps.pop(idx))
-            self.vault.set_app_order(apps)
-            self.vault.save()
-            self.show_apps_view()
+        for app in apps:
+            btn = QPushButton(app.upper())
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda checked, a=app: self.select_app(a))
+            self.app_list.addWidget(btn)
+            
+        if apps:
+            self.select_app(apps[0])
+        else:
+            self.current_app = None
+            self.refresh_credentials()
 
-    def show_account_context_menu(self, event, app_name, acc_name):
-        options = [
-            ("Move Up", lambda: self.move_account(app_name, acc_name, -1)),
-            ("Move Down", lambda: self.move_account(app_name, acc_name, 1)),
-            (f"Edit {acc_name}", lambda: self.show_add_view(edit_app=app_name, edit_name=acc_name)),
-            (f"Delete {acc_name}", lambda: self.delete_account(app_name, acc_name))
-        ]
-        ModernMenu(self.root, event.x_root, event.y_root, options)
+    def select_app(self, app_name):
+        self.current_app = app_name
+        for i in range(self.app_list.count()):
+            btn = self.app_list.itemAt(i).widget()
+            if isinstance(btn, QPushButton):
+                btn.setChecked(btn.text().lower() == app_name.lower())
+                
+        self.refresh_credentials()
+        
+    def refresh_credentials(self):
+        self.cred_list.clear()
+        if not self.vault or not self.current_app:
+            return
+            
+        accounts = self.vault.get_accounts(self.current_app)
+        for acc in accounts:
+            item = QListWidgetItem(f"{acc}")
+            item.setData(Qt.ItemDataRole.UserRole, acc)
+            self.cred_list.addItem(item)
+            
+        self.filter_credentials(self.search_input.text())
 
-    def move_account(self, app_name, acc_name, direction):
-        accounts = self.vault.get_accounts(app_name)
-        idx = accounts.index(acc_name)
-        new_idx = idx + direction
-        if 0 <= new_idx < len(accounts):
-            accounts.insert(new_idx, accounts.pop(idx))
-            self.vault.set_account_order(app_name, accounts)
-            self.vault.save()
-            self.show_accounts_view(app_name)
+    def filter_credentials(self, text):
+        for i in range(self.cred_list.count()):
+            item = self.cred_list.item(i)
+            item.setHidden(text.lower() not in item.text().lower())
 
-    def delete_app(self, app_name):
-        if messagebox.askyesno("Confirm", f"Delete entire application '{app_name}' and all passwords?"):
-            self.vault.delete_app(app_name)
-            self.vault.save()
-            self.show_apps_view()
+    def add_account(self):
+        dialog = AccountDialog(self, app_name=self.current_app or "")
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            data = dialog.get_data()
+            if data["app_name"] and data["acc_name"]:
+                self.vault.set_entry(data["app_name"], data["acc_name"], {
+                    "username": data["username"],
+                    "password": data["password"],
+                    "riot_logic": data["riot_logic"]
+                })
+                self.vault.save()
+                self.refresh_sidebar()
+                self.select_app(data["app_name"])
 
-    def delete_account(self, app_name, acc_name):
-        if messagebox.askyesno("Confirm", f"Delete account '{acc_name}'?"):
-            self.vault.delete_entry(app_name, acc_name)
-            self.vault.save()
-            self.show_accounts_view(app_name)
+    def on_item_clicked(self, item):
+        acc_name = item.data(Qt.ItemDataRole.UserRole)
+        data = self.vault.get_entry(self.current_app, acc_name)
+        if not data: return
+        
+        QApplication.clipboard().setText(data['password'])
+        
+        if data.get('riot_logic', False):
+            threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
+        else:
+            QMessageBox.information(self, "Copied", f"Password for {acc_name} copied to clipboard!")
 
-    def execute_login(self, app_name, account_name):
-        threading.Thread(target=self._execute_login_thread, args=(app_name, account_name), daemon=True).start()
-
-    def _execute_login_thread(self, app_name, account_name):
-        data = self.vault.get_entry(app_name, account_name)
+    def _execute_login_thread(self, data):
         username = data['username']
         password = data['password']
-        
-        if not data.get('riot_logic', False):
-            self.root.after(0, self.root.clipboard_clear)
-            self.root.after(0, lambda: self.root.clipboard_append(f"{username} : {password}"))
-            self.root.after(0, self.root.update)
-            
-            self.root.after(0, self.root.withdraw)
-            self.root.after(0, self.run_tray_icon)
-            return
-        
-        self.root.after(0, self.root.withdraw)
         
         while ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
             time.sleep(0.01)
@@ -698,59 +460,99 @@ class SecureSwitcher:
         while not (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000):
             time.sleep(0.01)
         
-        time.sleep(0.1) 
-        
+        time.sleep(0.1)
         pyautogui.write(username, interval=0)
         pyautogui.press('tab')
-        
-        self.root.after(0, self.root.clipboard_clear)
-        self.root.after(0, lambda: self.root.clipboard_append(password))
-        self.root.after(0, self.root.update)
         time.sleep(0.1)
-        pyautogui.hotkey('ctrl', 'v')
-
+        pyautogui.write(password, interval=0)
         time.sleep(0.1)
         pyautogui.press('enter')
+
+class OmniVaultApp(QMainWindow):
+    toggle_visibility_signal = pyqtSignal()
+    
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.resize(850, 550)
         
-        self.root.after(0, self.root.deiconify)
+        self.central_widget = QWidget()
+        self.central_widget.setObjectName("MainWidget")
+        self.central_widget.setStyleSheet(STYLE_SHEET + "\n#MainWidget { border-radius: 8px; background-color: #0F172A; border: 1px solid #334155; }")
+        self.setCentralWidget(self.central_widget)
+        
+        main_layout = QVBoxLayout(self.central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        self.title_bar = TitleBar(self)
+        main_layout.addWidget(self.title_bar)
+        
+        self.stacked_widget = QStackedWidget()
+        main_layout.addWidget(self.stacked_widget)
+        
+        self.login_screen = LoginScreen()
+        self.main_screen = MainScreen()
+        
+        self.stacked_widget.addWidget(self.login_screen)
+        self.stacked_widget.addWidget(self.main_screen)
+        
+        self.login_screen.login_success.connect(self.on_login_success)
+        self.main_screen.logout_requested.connect(self.lock_vault)
+        
+        self.idle_timeout_sec = 300
+        self.last_activity = time.time()
+        
+        self.mouse_listener = mouse.Listener(on_move=self._on_activity, on_click=self._on_activity, on_scroll=self._on_activity)
+        self.kb_listener = keyboard.Listener(on_press=self._on_activity)
+        self.mouse_listener.start()
+        self.kb_listener.start()
+        
+        self.hotkey_listener = keyboard.GlobalHotKeys({
+            '<ctrl>+<alt>+v': self.on_global_hotkey
+        })
+        self.hotkey_listener.start()
+        
+        self.toggle_visibility_signal.connect(self.toggle_visibility)
+        
+        self.check_idle_timer = QTimer(self)
+        self.check_idle_timer.timeout.connect(self.check_idle)
+        self.check_idle_timer.start(1000)
 
-    def check_startup_status(self):
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
-            winreg.QueryValueEx(key, "OmniVaultSwitcher")
-            winreg.CloseKey(key)
-            return True
-        except:
-            return False
+    def _on_activity(self, *args, **kwargs):
+        self.last_activity = time.time()
 
-    def toggle_startup(self):
-        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-        app_name = "OmniVaultSwitcher"
-        exe_path = sys.executable.replace("python.exe", "pythonw.exe")
-        script_path = os.path.abspath(__file__)
-        command = f'"{exe_path}" "{script_path}"'
+    def check_idle(self):
+        if self.stacked_widget.currentIndex() == 1:
+            if time.time() - self.last_activity > self.idle_timeout_sec:
+                self.lock_vault()
 
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
-            if self.startup_var.get():
-                winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, command)
-            else:
-                try:
-                    winreg.DeleteValue(key, app_name)
-                except FileNotFoundError:
-                    pass
-            winreg.CloseKey(key)
-        except Exception as e:
-            messagebox.showerror("Error", f"Startup setting failed: {e}")
-            self.startup_var.set(not self.startup_var.get())
+    def on_global_hotkey(self):
+        self.toggle_visibility_signal.emit()
+
+    def toggle_visibility(self):
+        if self.isVisible() and not self.isMinimized():
+            self.hide()
+        else:
+            self.showNormal()
+            self.activateWindow()
+
+    def on_login_success(self, vault):
+        self.main_screen.set_vault(vault)
+        self.stacked_widget.setCurrentWidget(self.main_screen)
+        self.last_activity = time.time()
+
+    def lock_vault(self):
+        self.main_screen.set_vault(None)
+        self.stacked_widget.setCurrentWidget(self.login_screen)
+        self.login_screen.pwd_input.clear()
+
+def main():
+    app = QApplication(sys.argv)
+    window = OmniVaultApp()
+    window.show()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
-    if getattr(sys, 'frozen', False):
-        application_path = os.path.dirname(sys.executable)
-    elif __file__:
-        application_path = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(application_path)
-    root = tk.Tk()
-    root.withdraw() 
-    app = SecureSwitcher(root)
-    root.mainloop()
+    main()
