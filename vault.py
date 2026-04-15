@@ -129,12 +129,27 @@ class IncrementalVault:
     def delete_entry(self, app_name, acc_name):
         if app_name in self.data and acc_name in self.data[app_name]:
             del self.data[app_name][acc_name]
+
+            if "__metadata__" in self.data and "acc_order" in self.data["__metadata__"] and app_name in self.data["__metadata__"]["acc_order"]:
+                if acc_name in self.data["__metadata__"]["acc_order"][app_name]:
+                    self.data["__metadata__"]["acc_order"][app_name].remove(acc_name)
+
             if not self.data[app_name]:
                 del self.data[app_name]
+                if "__metadata__" in self.data:
+                    if "app_order" in self.data["__metadata__"] and app_name in self.data["__metadata__"]["app_order"]:
+                        self.data["__metadata__"]["app_order"].remove(app_name)
+                    if "acc_order" in self.data["__metadata__"] and app_name in self.data["__metadata__"]["acc_order"]:
+                        del self.data["__metadata__"]["acc_order"][app_name]
 
     def delete_app(self, app_name):
         if app_name in self.data:
             del self.data[app_name]
+            if "__metadata__" in self.data:
+                if "app_order" in self.data["__metadata__"] and app_name in self.data["__metadata__"]["app_order"]:
+                    self.data["__metadata__"]["app_order"].remove(app_name)
+                if "acc_order" in self.data["__metadata__"] and app_name in self.data["__metadata__"]["acc_order"]:
+                    del self.data["__metadata__"]["acc_order"][app_name]
 
     def set_app_order(self, order_list):
         if "__metadata__" not in self.data:

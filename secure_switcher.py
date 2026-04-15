@@ -4,7 +4,10 @@ import math
 import os
 import json
 import threading
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                              QStackedWidget, QFrame, QMessageBox, QDialog, QFormLayout, QCheckBox,
@@ -669,13 +672,14 @@ class MainScreen(QWidget):
                 if new_name in self.vault.data:
                     QMessageBox.warning(self, "Error", "Category already exists!")
                     return
-                self.vault.data[new_name] = self.vault.data.pop(app_name)
                 
                 apps = self.vault.get_apps()
                 if app_name in apps:
                     apps[apps.index(app_name)] = new_name
                     self.vault.set_app_order(apps)
                 
+                self.vault.data[new_name] = self.vault.data.pop(app_name)
+
                 if "__metadata__" in self.vault.data and "acc_order" in self.vault.data["__metadata__"]:
                     if app_name in self.vault.data["__metadata__"]["acc_order"]:
                         self.vault.data["__metadata__"]["acc_order"][new_name] = self.vault.data["__metadata__"]["acc_order"].pop(app_name)
