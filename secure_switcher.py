@@ -38,7 +38,12 @@ def save_settings(settings):
 def set_startup(enable):
     key = r"Software\Microsoft\Windows\CurrentVersion\Run"
     app_name = "OmniVault"
-    exe_path = os.path.abspath(sys.argv[0])
+    
+    if getattr(sys, 'frozen', False):
+        exe_path = sys.executable
+    else:
+        exe_path = os.path.abspath(sys.argv[0])
+        
     try:
         registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_WRITE)
         if enable:
@@ -903,7 +908,13 @@ def main():
     # Set working directory to the location of the executable or script
     # to ensure relative paths for vault and settings work correctly
     # especially when started by Windows at boot
-    base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    if getattr(sys, 'frozen', False):
+        # Running as a bundled executable
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        # Running as a script
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
     os.chdir(base_dir)
 
     app = QApplication(sys.argv)
