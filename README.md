@@ -1,6 +1,6 @@
 # OmniVault
 
-A modern, frameless desktop password manager featuring AES-128 Fernet encryption with PBKDF2HMAC key derivation, HMAC-SHA256 integrity layer, hotkey-driven auto-typing, and a premium Deep Charcoal/Slate PyQt6 UI. Designed as an ultra-secure, local-only alternative to cloud-based password managers.
+A high-performance desktop security tool designed for local-first credential management. It provides a secure and efficient way to store your sensitive data using industry-standard encryption protocols, featuring an automated typing system and a refined dark-mode interface for a seamless user experience.
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
 ![PyQt6](https://img.shields.io/badge/PyQt6-41CD52?style=flat&logo=qt&logoColor=white)
