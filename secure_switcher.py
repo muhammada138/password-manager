@@ -739,18 +739,24 @@ class MainScreen(QWidget):
                 self.vault.save()
                 self.refresh_credentials()
 
+    def clear_clipboard_if_match(self, password):
+        # Only clear if the clipboard hasn't been overwritten by the user
+        if QApplication.clipboard().text() == password:
+            QApplication.clipboard().clear()
+
     def on_item_clicked(self, item):
         acc_name = item.data(Qt.ItemDataRole.UserRole)
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
-        
-        QApplication.clipboard().setText(data['password'])
         
         # Hide the window immediately
         self.parent_window.hide()
         
         if data.get('riot_logic', False):
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
+        else:
+            QApplication.clipboard().setText(data['password'])
+            QTimer.singleShot(30000, lambda: self.clear_clipboard_if_match(data['password']))
 
     def _execute_login_thread(self, data):
         username = data['username']
