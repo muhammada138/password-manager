@@ -1,0 +1,3 @@
+## 2024-04-18 - Missing Accessibility in Custom Title Bar Controls
+**Learning:** When building frameless custom windows in PyQt6 (like `OmniVaultApp` using a custom `TitleBar`), the custom window controls (minimize, close) lose their native tooltips and accessible names. Icon-only buttons (like "—" and "✕") become completely opaque to screen readers and offer no visual context to users on hover.
+**Action:** Always ensure custom window controls and icon-only buttons receive explicit `setToolTip()` (for mouse users) and `setAccessibleName()` (for screen readers) attributes when implementing custom UI frames.
