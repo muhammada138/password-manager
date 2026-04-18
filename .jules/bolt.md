@@ -1,0 +1,3 @@
+## 2026-04-18 - Replacing O(n²) Nested List Lookups in Sorting
+**Learning:** Using `list.index(x) if x in list` inside a custom sorting `key` function results in evaluating the full list multiple times, creating an O(n²) performance bottleneck, particularly noticeable with larger datasets. This pattern was used for sorting accounts and apps based on stored `order_list`s.
+**Action:** Pre-compute a dictionary that maps items to their intended indices (e.g., `order_dict = {name: i for i, name in enumerate(order_list)}`) before running `sorted()`, and use `order_dict.get(x, fallback_index)` in the sorting `key` lambda instead. This changes the O(n²) lookups to O(1) resulting in an overall O(n log n) sorting cost.
