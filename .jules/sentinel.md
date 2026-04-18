@@ -1,0 +1,4 @@
+## 2024-04-18 - Fix Clipboard Exposure in Omni Login
+**Vulnerability:** OmniVault advertised "Omni Login" as a way to bypass the clipboard and prevent password sniffing by typing passwords out directly. However, the password was unconditionally copied to the system clipboard beforehand, completely negating the security benefit. Furthermore, copied passwords lingered in the clipboard indefinitely.
+**Learning:** Security features must be rigorously verified against code implementations. A feature that simulates secure behavior but still executes the insecure path behind the scenes creates a false sense of security (security theater) which can be more dangerous than no protection at all.
+**Prevention:** Conditional logic for security paths must mutually exclude insecure paths. Always implement a TTL (time-to-live) for sensitive data temporarily placed in insecure buffers like the clipboard.
