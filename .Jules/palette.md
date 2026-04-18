@@ -1,0 +1,3 @@
+## 2024-04-18 - Add accessibility to custom window controls
+**Learning:** When building custom frameless windows in PyQt6, standard window controls (like minimize and close buttons) lose their default accessibility features and screen reader announcements. These must be manually re-implemented using `setToolTip()` and `setAccessibleName()` for icon-only buttons to ensure they remain accessible to all users.
+**Action:** Always verify that custom title bar controls in frameless windows have explicit ARIA labels/accessible names and tooltips assigned to them, especially if they are icon-only buttons.
