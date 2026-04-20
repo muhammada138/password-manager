@@ -1,0 +1,4 @@
+## 2024-04-20 - [HIGH] Fix clipboard exposure and sniffing vulnerability
+**Vulnerability:** The application was copying sensitive passwords to the system clipboard unconditionally, even when the auto-type ("Omni Login" / `riot_logic`) feature was enabled. The clipboard data was also never cleared, leaving it exposed indefinitely.
+**Learning:** Hardcoded clipboard interactions can defeat the purpose of protective features like auto-typing by exposing the same data they aim to protect. Long-lived clipboard data increases the window of opportunity for other applications to sniff sensitive info.
+**Prevention:** Only copy to the clipboard when strictly necessary (i.e. when auto-type is disabled). Always implement a reasonable timeout (e.g., 30 seconds) to automatically clear sensitive data from the clipboard.
