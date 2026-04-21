@@ -744,7 +744,9 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
-        QApplication.clipboard().setText(data['password'])
+        if not data.get('riot_logic', False):
+            QApplication.clipboard().setText(data['password'])
+            QTimer.singleShot(30000, lambda: QApplication.clipboard().clear())
         
         # Hide the window immediately
         self.parent_window.hide()
