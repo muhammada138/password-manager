@@ -13,9 +13,16 @@ class SecureString:
     """Context manager for securely handling sensitive strings, zeroing memory after use."""
     def __init__(self, string_data):
         if isinstance(string_data, str):
-            string_data = string_data.encode('utf-8')
-        self._length = len(string_data)
-        self._buffer = ctypes.create_string_buffer(string_data)
+            b_arr = bytearray(string_data, 'utf-8')
+            self._length = len(b_arr)
+            self._buffer = ctypes.create_string_buffer(self._length)
+            buf = (ctypes.c_char * self._length).from_buffer(b_arr)
+            ctypes.memmove(self._buffer, buf, self._length)
+            for i in range(self._length):
+                b_arr[i] = 0
+        else:
+            self._length = len(string_data)
+            self._buffer = ctypes.create_string_buffer(string_data)
 
     def get_bytes(self):
         if not self._buffer:
@@ -38,7 +45,7 @@ class SecureString:
 
 class IncrementalVault:
     def __init__(self, password: str, vault_path="my_vault.bin"):
-        self._password = password
+        self._sec_password = SecureString(password)
         self.vault_path = vault_path
         self.salt = None
         self.fernet_key = None
@@ -46,16 +53,16 @@ class IncrementalVault:
         self.data = {}
 
     def _derive_keys(self, salt):
-        with SecureString(self._password) as sec_pw:
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=64,
-                salt=salt,
-                iterations=200000,
-            )
-            derived = kdf.derive(sec_pw.get_bytes())
-            self.fernet_key = base64.urlsafe_b64encode(derived[:32])
-            self.hmac_key = derived[32:]
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=64,
+            salt=salt,
+            iterations=200000,
+        )
+        derived = kdf.derive(self._sec_password.get_bytes())
+        self.fernet_key = base64.urlsafe_b64encode(derived[:32])
+        self.hmac_key = derived[32:]
+        self._sec_password.clear()
 
     def _encrypt_data(self, data: bytes) -> bytes:
         f = Fernet(self.fernet_key)
