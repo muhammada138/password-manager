@@ -1,0 +1,3 @@
+## 2024-04-24 - [Optimize sorting in IncrementalVault]
+**Learning:** Using `list.index()` inside a sorting key function causes an O(N) lookup for every comparison, leading to O(N^2 log N) time complexity. Pre-computing an index map using `dict` reduces the lookup to O(1) and the total time to O(N log N).
+**Action:** Always pre-compute a dictionary mapping items to their indices when sorting a large collection based on an external order list.
