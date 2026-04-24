@@ -316,11 +316,15 @@ class TitleBar(QFrame):
         
         self.min_btn = QPushButton("—")
         self.min_btn.setObjectName("MinBtn")
+        self.min_btn.setToolTip("Minimize")
+        self.min_btn.setAccessibleName("Minimize")
         self.min_btn.setFixedSize(40, 30)
         self.min_btn.clicked.connect(self.parent_window.minimize_action)
         
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("CloseBtn")
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setAccessibleName("Close")
         self.close_btn.setFixedSize(40, 30)
         self.close_btn.clicked.connect(self.parent_window.close_action)
         
@@ -775,6 +779,8 @@ class OmniVaultApp(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("OmniVault Secure")
+        self.setAccessibleName("OmniVault Secure")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(900, 600)
@@ -833,6 +839,7 @@ class OmniVaultApp(QMainWindow):
 
         # Tray Icon setup
         self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setToolTip("OmniVault Secure")
         if os.path.exists("vault_icon.ico"):
             self.tray_icon.setIcon(QIcon("vault_icon.ico"))
         else:
