@@ -744,12 +744,19 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
-        QApplication.clipboard().setText(data['password'])
+        riot_logic = data.get('riot_logic', False)
+
+        # Completely bypass clipboard if riot_logic is active to prevent clipboard sniffing
+        if not riot_logic:
+            cb = QApplication.clipboard()
+            cb.setText(data['password'])
+            # Clear clipboard after 30 seconds to prevent data leakage
+            QTimer.singleShot(30000, cb.clear)
         
         # Hide the window immediately
         self.parent_window.hide()
         
-        if data.get('riot_logic', False):
+        if riot_logic:
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
 
     def _execute_login_thread(self, data):
