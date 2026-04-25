@@ -1,0 +1,3 @@
+## 2025-04-25 - Custom Frameless Window Accessibility
+**Learning:** Custom frameless window controls (minimize, close) and tray icons in PyQt6 lack default screen reader support and tooltips, requiring explicit `.setToolTip()` and `.setAccessibleName()` assignments.
+**Action:** Always assign explicit accessibility attributes to custom `QPushButton` window controls and `QSystemTrayIcon` instances to maintain accessibility and screen reader support.
