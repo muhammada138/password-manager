@@ -1,0 +1,4 @@
+## 2024-05-18 - [Secure Clipboard Management and Timeouts]
+**Vulnerability:** The application was copying sensitive credentials directly to the system clipboard unconditionally, even when using the automated Omni Login feature. For standard copies, the password remained in the clipboard indefinitely, exposing it to potential clipboard-sniffing malware or accidental paste disclosures.
+**Learning:** Even with an automated injection mechanism (like PyAutoGUI), bypassing the clipboard must be explicit. Relying on users or external systems to clear the clipboard is unsafe.
+**Prevention:** Implement a strict clipboard bypass for automated credential injection features. For manual copies, always employ an automatic, non-blocking timeout (e.g., using `QTimer.singleShot` in PyQt) to zero out the clipboard content after a short duration (like 30 seconds).
