@@ -317,11 +317,15 @@ class TitleBar(QFrame):
         self.min_btn = QPushButton("—")
         self.min_btn.setObjectName("MinBtn")
         self.min_btn.setFixedSize(40, 30)
+        self.min_btn.setToolTip("Minimize")
+        self.min_btn.setAccessibleName("Minimize Window")
         self.min_btn.clicked.connect(self.parent_window.minimize_action)
         
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("CloseBtn")
         self.close_btn.setFixedSize(40, 30)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setAccessibleName("Close Window")
         self.close_btn.clicked.connect(self.parent_window.close_action)
         
         layout.addWidget(self.min_btn)
@@ -574,6 +578,45 @@ class MainScreen(QWidget):
         
         self.current_app = None
 
+    def get_category_icon(self, name):
+        name = name.lower()
+        if "riot" in name: return "🎮"
+        if "epic" in name: return "🕹️"
+        if "twitch" in name: return "🟣"
+        if "icloud" in name: return "☁️"
+        if "oracle" in name: return "🔴"
+        if "steam" in name: return "💨"
+        if "google" in name: return "📧"
+        if "discord" in name: return "💬"
+        if "microsoft" in name: return "🪟"
+        if "social" in name: return "👥"
+        if "work" in name: return "💼"
+        if "personal" in name: return "👤"
+        if "bank" in name or "finance" in name: return "💰"
+        return "📁"
+
+    def get_account_icon(self, category, name):
+        category = category.lower()
+        name = name.lower()
+        # Specific account name icons
+        if "gmail" in name or "google" in name: return "📧"
+        if "outlook" in name or "hotmail" in name: return "📧"
+        if "github" in name: return "🐙"
+        if "linkedin" in name: return "🔗"
+        if "twitter" in name or " x " in name: return "🐦"
+        if "facebook" in name or "fb" in name: return "🔵"
+        if "instagram" in name: return "📸"
+        if "reddit" in name: return "🤖"
+        
+        # Fallback to category icon if appropriate
+        if "riot" in category: return "🔫"
+        if "epic" in category: return "🎮"
+        if "twitch" in category: return "📺"
+        if "icloud" in category: return "🍏"
+        if "oracle" in category: return "🗄️"
+        
+        return "🔑"
+
     def open_settings(self):
         dialog = SettingsDialog(self)
         dialog.exec()
@@ -589,7 +632,8 @@ class MainScreen(QWidget):
             
         apps = self.vault.get_apps()
         for app in apps:
-            item = QListWidgetItem(f"📁 {app.upper()}")
+            icon = self.get_category_icon(app)
+            item = QListWidgetItem(f"{icon} {app.upper()}")
             item.setData(Qt.ItemDataRole.UserRole, app)
             self.app_list.addItem(item)
             
@@ -618,7 +662,8 @@ class MainScreen(QWidget):
             
         accounts = self.vault.get_accounts(self.current_app)
         for acc in accounts:
-            item = QListWidgetItem(f"🔑 {acc}")
+            icon = self.get_account_icon(self.current_app, acc)
+            item = QListWidgetItem(f"{icon} {acc}")
             item.setData(Qt.ItemDataRole.UserRole, acc)
             self.cred_list.addItem(item)
             
@@ -744,13 +789,21 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
-        QApplication.clipboard().setText(data['password'])
-        
         # Hide the window immediately
         self.parent_window.hide()
         
         if data.get('riot_logic', False):
+            # Bypass clipboard entirely for Omni Login
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
+        else:
+            # Copy to clipboard and set a 30-second timeout to clear it
+            username = data.get('username', '')
+            password = data.get('password', '')
+            clipboard_text = f"{username}:{password}" if username else password
+            
+            clipboard = QApplication.clipboard()
+            clipboard.setText(clipboard_text)
+            QTimer.singleShot(30000, clipboard.clear)
 
     def _execute_login_thread(self, data):
         username = data['username']
@@ -775,7 +828,7 @@ class OmniVaultApp(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(900, 600)
         
@@ -833,6 +886,7 @@ class OmniVaultApp(QMainWindow):
 
         # Tray Icon setup
         self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setToolTip("OmniVault Secure")
         if os.path.exists("vault_icon.ico"):
             self.tray_icon.setIcon(QIcon("vault_icon.ico"))
         else:
@@ -859,6 +913,9 @@ class OmniVaultApp(QMainWindow):
 
     def show_app(self):
         self.showNormal()
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.show()
+        self.raise_()
         self.activateWindow()
 
     def minimize_action(self):
@@ -892,6 +949,9 @@ class OmniVaultApp(QMainWindow):
             self.hide()
         else:
             self.showNormal()
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+            self.show()
+            self.raise_()
             self.activateWindow()
 
     def on_login_success(self, vault):
