@@ -744,12 +744,16 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
-        QApplication.clipboard().setText(data['password'])
+        is_riot = data.get('riot_logic', False)
+
+        if not is_riot:
+            QApplication.clipboard().setText(data['password'])
+            QTimer.singleShot(30000, QApplication.clipboard().clear)
         
         # Hide the window immediately
         self.parent_window.hide()
         
-        if data.get('riot_logic', False):
+        if is_riot:
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
 
     def _execute_login_thread(self, data):
