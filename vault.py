@@ -156,6 +156,7 @@ class IncrementalVault:
             self.data["__metadata__"] = {}
         self.data["__metadata__"]["app_order"] = order_list
 
+    def get_apps(self):
         apps = [k for k in self.data.keys() if k != "__metadata__"]
         order = self.data.get("__metadata__", {}).get("app_order", [])
         
