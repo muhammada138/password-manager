@@ -135,6 +135,11 @@ QPushButton.primary {
 QPushButton.primary:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7DD3FC, stop:1 #38BDF8);
 }
+QPushButton.primary:disabled {
+    background: #1E293B;
+    color: #475569;
+    border: 1px solid #334155;
+}
 QPushButton.secondary {
     background-color: #1E293B;
     color: #E2E8F0;
@@ -467,7 +472,9 @@ class AccountDialog(QDialog):
         
         form = QFormLayout()
         self.app_input = QLineEdit(app_name)
+        self.app_input.setPlaceholderText("e.g. Google, Steam, Bank")
         self.acc_input = QLineEdit(acc_name)
+        self.acc_input.setPlaceholderText("e.g. Personal, Work, main_acc")
         self.user_input = QLineEdit(username)
         self.pwd_input = QLineEdit(password)
         self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -485,18 +492,30 @@ class AccountDialog(QDialog):
         layout.addStretch()
         
         btn_layout = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        save_btn.setProperty("class", "primary")
-        save_btn.clicked.connect(self.accept)
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setProperty("class", "primary")
+        self.save_btn.clicked.connect(self.accept)
         
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setProperty("class", "secondary")
         cancel_btn.clicked.connect(self.reject)
         
-        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(self.save_btn)
         btn_layout.addWidget(cancel_btn)
         
         layout.addLayout(btn_layout)
+
+        self.app_input.textChanged.connect(self.validate_form)
+        self.acc_input.textChanged.connect(self.validate_form)
+        self.validate_form()
+
+    def validate_form(self):
+        is_valid = bool(self.app_input.text().strip() and self.acc_input.text().strip())
+        self.save_btn.setEnabled(is_valid)
+        if not is_valid:
+            self.save_btn.setToolTip("App Name and Account Name are required.")
+        else:
+            self.save_btn.setToolTip("")
 
     def get_data(self):
         return {
