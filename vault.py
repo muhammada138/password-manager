@@ -4,6 +4,7 @@ import base64
 import ctypes
 import hmac
 import hashlib
+import binascii
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -45,13 +46,13 @@ class IncrementalVault:
         self.hmac_key = None
         self.data = {}
 
-    def _derive_keys(self, salt):
+    def _derive_keys(self, salt, iterations=600000):
         with SecureString(self._password) as sec_pw:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=64,
                 salt=salt,
-                iterations=200000,
+                iterations=iterations,
             )
             derived = kdf.derive(sec_pw.get_bytes())
             self.fernet_key = base64.urlsafe_b64encode(derived[:32])
@@ -77,7 +78,7 @@ class IncrementalVault:
     def load(self, callback=None):
         if not os.path.exists(self.vault_path):
             self.salt = os.urandom(16)
-            self._derive_keys(self.salt)
+            self._derive_keys(self.salt, iterations=600000)
             self.data = {}
             if callback: callback(True)
             return True
@@ -87,13 +88,19 @@ class IncrementalVault:
                 self.salt = f.read(16)
                 encrypted_data = f.read()
             
-            self._derive_keys(self.salt)
-            decrypted_data = self._decrypt_data(encrypted_data)
+            self._derive_keys(self.salt, iterations=600000)
+            try:
+                decrypted_data = self._decrypt_data(encrypted_data)
+            except (InvalidKey, InvalidToken):
+                # Fallback to older 200,000 iterations format
+                self._derive_keys(self.salt, iterations=200000)
+                decrypted_data = self._decrypt_data(encrypted_data)
+
             self.data = json.loads(decrypted_data.decode('utf-8'))
             
             if callback: callback(True)
             return True
-        except Exception:
+        except (OSError, ValueError, InvalidKey, InvalidToken, json.JSONDecodeError):
             if callback: callback(False)
             return False
 
@@ -115,7 +122,7 @@ class IncrementalVault:
             encrypted_bytes = base64.b64decode(encrypted_entry.encode('ascii'))
             decrypted_entry = self._decrypt_data(encrypted_bytes)
             return json.loads(decrypted_entry.decode('utf-8'))
-        except Exception:
+        except (ValueError, InvalidKey, InvalidToken, TypeError, binascii.Error):
             return None
 
     def set_entry(self, app_name, acc_name, entry_dict):
