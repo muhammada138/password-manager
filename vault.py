@@ -159,10 +159,10 @@ class IncrementalVault:
     def get_apps(self):
         apps = [k for k in self.data.keys() if k != "__metadata__"]
         order = self.data.get("__metadata__", {}).get("app_order", [])
-        
-        # O(1) lookups for sorting
-        order_idx = {name: idx for idx, name in enumerate(order)}
-        return sorted(apps, key=lambda x: order_idx.get(x, len(order)))
+        # Pre-compute indices for O(1) lookups to avoid O(N^2) complexity
+        order_idx = {app: idx for idx, app in enumerate(order)}
+        default_idx = len(order)
+        return sorted(apps, key=lambda x: order_idx.get(x, default_idx))
 
     def set_account_order(self, app_name, order_list):
         if "__metadata__" not in self.data:
@@ -174,7 +174,7 @@ class IncrementalVault:
     def get_accounts(self, app_name):
         accounts = [k for k in self.data.get(app_name, {}).keys()]
         order = self.data.get("__metadata__", {}).get("acc_order", {}).get(app_name, [])
-        
-        # O(1) lookups for sorting
-        order_idx = {name: idx for idx, name in enumerate(order)}
-        return sorted(accounts, key=lambda x: order_idx.get(x, len(order)))
+        # Pre-compute indices for O(1) lookups to avoid O(N^2) complexity
+        order_idx = {acc: idx for idx, acc in enumerate(order)}
+        default_idx = len(order)
+        return sorted(accounts, key=lambda x: order_idx.get(x, default_idx))
