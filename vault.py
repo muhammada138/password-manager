@@ -45,13 +45,13 @@ class IncrementalVault:
         self.hmac_key = None
         self.data = {}
 
-    def _derive_keys(self, salt):
+    def _derive_keys(self, salt, iterations=600000):
         with SecureString(self._password) as sec_pw:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=64,
                 salt=salt,
-                iterations=200000,
+                iterations=iterations,
             )
             derived = kdf.derive(sec_pw.get_bytes())
             self.fernet_key = base64.urlsafe_b64encode(derived[:32])
@@ -87,12 +87,22 @@ class IncrementalVault:
                 self.salt = f.read(16)
                 encrypted_data = f.read()
             
-            self._derive_keys(self.salt)
-            decrypted_data = self._decrypt_data(encrypted_data)
-            self.data = json.loads(decrypted_data.decode('utf-8'))
-            
-            if callback: callback(True)
-            return True
+            # First try with new standard 600,000 iterations
+            try:
+                self._derive_keys(self.salt, iterations=600000)
+                decrypted_data = self._decrypt_data(encrypted_data)
+                self.data = json.loads(decrypted_data.decode('utf-8'))
+
+                if callback: callback(True)
+                return True
+            except Exception:
+                # Fallback to legacy 200,000 iterations
+                self._derive_keys(self.salt, iterations=200000)
+                decrypted_data = self._decrypt_data(encrypted_data)
+                self.data = json.loads(decrypted_data.decode('utf-8'))
+
+                if callback: callback(True)
+                return True
         except Exception:
             if callback: callback(False)
             return False
