@@ -796,14 +796,8 @@ class MainScreen(QWidget):
             # Bypass clipboard entirely for Omni Login
             threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
         else:
-            # Copy to clipboard and set a 30-second timeout to clear it
-            username = data.get('username', '')
-            password = data.get('password', '')
-            clipboard_text = f"{username}:{password}" if username else password
-            
-            clipboard = QApplication.clipboard()
-            clipboard.setText(clipboard_text)
-            QTimer.singleShot(30000, clipboard.clear)
+            QApplication.clipboard().setText(data['password'])
+            QTimer.singleShot(30000, QApplication.clipboard().clear)
 
     def _execute_login_thread(self, data):
         username = data['username']
