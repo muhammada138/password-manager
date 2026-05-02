@@ -13,14 +13,17 @@ class SecureString:
     """Context manager for securely handling sensitive strings, zeroing memory after use."""
     def __init__(self, string_data):
         if isinstance(string_data, str):
-            string_data = string_data.encode('utf-8')
-        self._length = len(string_data)
-        self._buffer = ctypes.create_string_buffer(string_data)
+            self._buffer = bytearray(string_data, 'utf-8')
+        elif isinstance(string_data, (bytes, bytearray)):
+            self._buffer = bytearray(string_data)
+        else:
+            raise TypeError("Unsupported type for SecureString")
+        self._length = len(self._buffer)
 
     def get_bytes(self):
-        if not self._buffer:
+        if self._buffer is None:
             raise RuntimeError("SecureString has been cleared.")
-        return self._buffer.raw[:self._length]
+        return self._buffer
 
     def get_str(self):
         return self.get_bytes().decode('utf-8')
@@ -32,8 +35,9 @@ class SecureString:
         self.clear()
 
     def clear(self):
-        if self._buffer:
-            ctypes.memset(ctypes.addressof(self._buffer), 0, self._length)
+        if self._buffer is not None:
+            for i in range(self._length):
+                self._buffer[i] = 0
             self._buffer = None
 
 class IncrementalVault:
