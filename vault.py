@@ -42,6 +42,7 @@ class IncrementalVault:
         self.vault_path = vault_path
         self.salt = None
         self.fernet_key = None
+        self._fernet_instance = None
         self.hmac_key = None
         self.data = {}
 
@@ -55,10 +56,11 @@ class IncrementalVault:
             )
             derived = kdf.derive(sec_pw.get_bytes())
             self.fernet_key = base64.urlsafe_b64encode(derived[:32])
+            self._fernet_instance = Fernet(self.fernet_key)
             self.hmac_key = derived[32:]
 
     def _encrypt_data(self, data: bytes) -> bytes:
-        f = Fernet(self.fernet_key)
+        f = self._fernet_instance
         ciphertext = f.encrypt(data)
         h = hmac.new(self.hmac_key, ciphertext, hashlib.sha256)
         return ciphertext + h.digest()
@@ -71,7 +73,7 @@ class IncrementalVault:
         h = hmac.new(self.hmac_key, ciphertext, hashlib.sha256)
         if not hmac.compare_digest(h.digest(), mac):
             raise InvalidKey("HMAC integrity check failed")
-        f = Fernet(self.fernet_key)
+        f = self._fernet_instance
         return f.decrypt(ciphertext)
 
     def load(self, callback=None):
