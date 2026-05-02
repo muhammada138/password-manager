@@ -1,0 +1,3 @@
+## 2024-05-24 - Disabled States & Dynamic Tooltips
+**Learning:** When custom styling PyQt UI elements using stylesheets, dynamically changing their enabled state via `setEnabled(False)` does not automatically apply generic disabled styles if they aren't explicitly defined in the stylesheet. Inactive states often look exactly like active states to the user without proper CSS handling.
+**Action:** Always ensure a distinct `:disabled` CSS pseudo-class state is defined for custom-styled inputs and buttons. Additionally, pair these visually inactive states with a descriptive `setToolTip()` call explaining *why* the element is disabled to provide contextual feedback to the user.
