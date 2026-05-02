@@ -123,6 +123,11 @@ QLineEdit:focus {
     border: 1px solid #38BDF8;
     background-color: #0F172A;
 }
+QLineEdit:disabled {
+    background-color: #0F172A;
+    color: #475569;
+    border: 1px solid #1E293B;
+}
 QPushButton.primary {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #38BDF8, stop:1 #0EA5E9);
     color: #0F172A;
@@ -134,6 +139,11 @@ QPushButton.primary {
 }
 QPushButton.primary:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7DD3FC, stop:1 #38BDF8);
+}
+QPushButton.primary:disabled {
+    background: #1E293B;
+    color: #475569;
+    border: 1px solid #334155;
 }
 QPushButton.secondary {
     background-color: #1E293B;
@@ -441,12 +451,16 @@ class LoginScreen(QWidget):
             self.error_label.setText(f"Locked out. Try again in {remaining}s")
             self.login_btn.setEnabled(False)
             self.pwd_input.setEnabled(False)
+            self.login_btn.setToolTip("Too many failed attempts. Please wait.")
+            self.pwd_input.setToolTip("Too many failed attempts. Please wait.")
         else:
             if self.lockout_until != 0:
                 self.error_label.setText("")
                 self.lockout_until = 0
             self.login_btn.setEnabled(True)
             self.pwd_input.setEnabled(True)
+            self.login_btn.setToolTip("")
+            self.pwd_input.setToolTip("")
 
 class AccountDialog(QDialog):
     def __init__(self, parent=None, app_name="", acc_name="", username="", password="", riot_logic=False):
