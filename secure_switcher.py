@@ -836,6 +836,7 @@ class OmniVaultApp(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("OmniVault Secure")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(900, 600)
@@ -973,6 +974,20 @@ class OmniVaultApp(QMainWindow):
         self.login_screen.pwd_input.clear()
 
 def main():
+    # Ensure single instance
+    mutex_name = "OmniVault_SingleInstance_Mutex_v1"
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+    last_error = ctypes.windll.kernel32.GetLastError()
+    ERROR_ALREADY_EXISTS = 183
+    
+    if last_error == ERROR_ALREADY_EXISTS:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "OmniVault Secure")
+        if hwnd:
+            # 9 is SW_RESTORE
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        sys.exit(0)
+
     # Set working directory to the location of the executable or script
     # to ensure relative paths for vault and settings work correctly
     # especially when started by Windows at boot
@@ -992,6 +1007,11 @@ def main():
     window = OmniVaultApp()
     
     if settings.get("startup", False) and "--startup" in sys.argv:
+        try:
+            # Set process to HIGH_PRIORITY_CLASS (0x00000080) when launching on startup
+            ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x00000080)
+        except Exception:
+            pass
         pass # Start hidden in tray
     else:
         window.show()
