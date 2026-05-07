@@ -803,17 +803,20 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
+        # Clear selection so clicking it again doesn't trigger drag-and-drop instead
+        self.cred_list.clearSelection()
+        
         # Hide the window immediately
         self.parent_window.hide()
         
         if data.get('riot_logic', False):
             # Bypass clipboard entirely for Omni Login
-            threading.Thread(target=self._execute_login_thread, args=(data,), daemon=True).start()
+            threading.Thread(target=self._execute_login_thread, args=(data, self.current_app), daemon=True).start()
         else:
             QApplication.clipboard().setText(data['password'])
             QTimer.singleShot(30000, QApplication.clipboard().clear)
 
-    def _execute_login_thread(self, data):
+    def _execute_login_thread(self, data, app_name):
         username = data['username']
         password = data['password']
         
@@ -824,12 +827,20 @@ class MainScreen(QWidget):
             time.sleep(0.01)
         
         time.sleep(0.1)
-        pyautogui.write(username, interval=0)
-        pyautogui.press('tab')
-        time.sleep(0.1)
-        pyautogui.write(password, interval=0)
-        time.sleep(0.1)
-        pyautogui.press('enter')
+        if "epic" in app_name.lower():
+            pyautogui.write(username, interval=0)
+            pyautogui.press('enter')
+            time.sleep(1.0)
+            pyautogui.write(password, interval=0)
+            time.sleep(0.1)
+            pyautogui.press('enter')
+        else:
+            pyautogui.write(username, interval=0)
+            pyautogui.press('tab')
+            time.sleep(0.1)
+            pyautogui.write(password, interval=0)
+            time.sleep(0.1)
+            pyautogui.press('enter')
 
 class OmniVaultApp(QMainWindow):
     toggle_visibility_signal = pyqtSignal()
