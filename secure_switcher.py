@@ -803,8 +803,8 @@ class MainScreen(QWidget):
         data = self.vault.get_entry(self.current_app, acc_name)
         if not data: return
         
-        # Clear selection so clicking it again doesn't trigger drag-and-drop instead
-        self.cred_list.clearSelection()
+        # Clear selection asynchronously so clicking it again doesn't trigger drag-and-drop instead
+        QTimer.singleShot(0, self.cred_list.clearSelection)
         
         # Hide the window immediately
         self.parent_window.hide()
