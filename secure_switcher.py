@@ -1011,13 +1011,6 @@ def main():
     
     os.chdir(base_dir)
 
-    try:
-        # This tells Windows to group the taskbar icon properly, which can help Windows natively switch to the running app faster
-        myappid = 'omnivault.secure.manager.1.0'
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except Exception:
-        pass
-
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     if os.path.exists("vault_icon.ico"):
