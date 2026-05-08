@@ -1020,6 +1020,8 @@ def main():
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    if os.path.exists("vault_icon.ico"):
+        app.setWindowIcon(QIcon("vault_icon.ico"))
     
     settings = load_settings()
     window = OmniVaultApp()
