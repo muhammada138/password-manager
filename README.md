@@ -47,7 +47,7 @@ You need Python 3.10+ installed on your Windows system.
 ```bash
 git clone https://github.com/muhammada138/password-manager.git
 cd password-manager
-pip install PyQt6 pynput cryptography pyautogui
+pip install -r requirements.txt
 ```
 
 ### Running the App
@@ -59,6 +59,24 @@ python secure_switcher.py
 On first launch, you will be prompted to create/enter a vault password. This password derives the encryption key for the entire `my_vault.bin` file.
 
 **Global Hotkey:** `Ctrl + P` to toggle the vault window visibility from anywhere.
+
+---
+
+## Building a Standalone Executable
+
+You can compile OmniVault into a single `.exe` that runs without Python installed.
+
+**Requirements:** PyInstaller must be installed (`pip install pyinstaller` or `pip install -r requirements.txt`).
+
+**Build:**
+
+```bash
+rebuild.bat
+```
+
+This will produce `OmniVault.exe` in the project folder. Double-click it — no Python required on the target machine.
+
+> **Note:** Windows Defender or antivirus software may flag PyInstaller-packaged executables as a false positive. This is a known PyInstaller limitation. You can safely add an exclusion, or run from source instead.
 
 ---
 
